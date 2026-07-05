@@ -1,0 +1,9 @@
+# Ignore every root-level file and directory by default.
+/*
+
+# Keep this file tracked.
+!/.gitignore
+
+# Track only the UAV smoke platform workspace and everything under it.
+!/uav_smoke_platform/
+!/uav_smoke_platform/**
