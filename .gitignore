@@ -7,3 +7,6 @@
 # Track only the UAV smoke platform workspace and everything under it.
 !/uav_smoke_platform/
 !/uav_smoke_platform/**
+
+# Keep generated build files out of Git.
+/uav_smoke_platform/build/

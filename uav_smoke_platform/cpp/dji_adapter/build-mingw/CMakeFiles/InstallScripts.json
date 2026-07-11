@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"C:/Users/jb/Desktop/Payload-SDK-3.10.0-task/uav_smoke_platform/cpp/dji_adapter/build-mingw/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

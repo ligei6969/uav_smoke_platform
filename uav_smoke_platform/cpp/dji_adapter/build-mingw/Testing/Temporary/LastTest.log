@@ -1,0 +1,63 @@
+Start testing: Jul 11 14:39 中国标准时间
+----------------------------------------------------------
+1/4 Testing: target_geolocation_test
+1/4 Test: target_geolocation_test
+Command: "C:/Users/jb/Desktop/Payload-SDK-3.10.0-task/uav_smoke_platform/cpp/dji_adapter/build-mingw/target_geolocation_test.exe"
+Directory: C:/Users/jb/Desktop/Payload-SDK-3.10.0-task/uav_smoke_platform/cpp/dji_adapter/build-mingw
+"target_geolocation_test" start time: Jul 11 14:39 中国标准时间
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"target_geolocation_test" end time: Jul 11 14:39 中国标准时间
+"target_geolocation_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/4 Testing: smoke_event_builder_test
+2/4 Test: smoke_event_builder_test
+Command: "C:/Users/jb/Desktop/Payload-SDK-3.10.0-task/uav_smoke_platform/cpp/dji_adapter/build-mingw/smoke_event_builder_test.exe"
+Directory: C:/Users/jb/Desktop/Payload-SDK-3.10.0-task/uav_smoke_platform/cpp/dji_adapter/build-mingw
+"smoke_event_builder_test" start time: Jul 11 14:39 中国标准时间
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"smoke_event_builder_test" end time: Jul 11 14:39 中国标准时间
+"smoke_event_builder_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+3/4 Testing: mission_planner_test
+3/4 Test: mission_planner_test
+Command: "C:/Users/jb/Desktop/Payload-SDK-3.10.0-task/uav_smoke_platform/cpp/dji_adapter/build-mingw/mission_planner_test.exe"
+Directory: C:/Users/jb/Desktop/Payload-SDK-3.10.0-task/uav_smoke_platform/cpp/dji_adapter/build-mingw
+"mission_planner_test" start time: Jul 11 14:39 中国标准时间
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"mission_planner_test" end time: Jul 11 14:39 中国标准时间
+"mission_planner_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+4/4 Testing: mission_plan_writer_test
+4/4 Test: mission_plan_writer_test
+Command: "C:/Users/jb/Desktop/Payload-SDK-3.10.0-task/uav_smoke_platform/cpp/dji_adapter/build-mingw/mission_plan_writer_test.exe"
+Directory: C:/Users/jb/Desktop/Payload-SDK-3.10.0-task/uav_smoke_platform/cpp/dji_adapter/build-mingw
+"mission_plan_writer_test" start time: Jul 11 14:39 中国标准时间
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Passed.
+"mission_plan_writer_test" end time: Jul 11 14:39 中国标准时间
+"mission_plan_writer_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Jul 11 14:39 中国标准时间

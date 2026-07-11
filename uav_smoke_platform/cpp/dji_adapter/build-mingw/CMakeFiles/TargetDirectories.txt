@@ -1,0 +1,10 @@
+C:/Users/jb/Desktop/Payload-SDK-3.10.0-task/uav_smoke_platform/cpp/dji_adapter/build-mingw/CMakeFiles/uav_smoke_dji_adapter.dir
+C:/Users/jb/Desktop/Payload-SDK-3.10.0-task/uav_smoke_platform/cpp/dji_adapter/build-mingw/CMakeFiles/mock_adapter_demo.dir
+C:/Users/jb/Desktop/Payload-SDK-3.10.0-task/uav_smoke_platform/cpp/dji_adapter/build-mingw/CMakeFiles/smoke_mission_demo.dir
+C:/Users/jb/Desktop/Payload-SDK-3.10.0-task/uav_smoke_platform/cpp/dji_adapter/build-mingw/CMakeFiles/target_geolocation_test.dir
+C:/Users/jb/Desktop/Payload-SDK-3.10.0-task/uav_smoke_platform/cpp/dji_adapter/build-mingw/CMakeFiles/smoke_event_builder_test.dir
+C:/Users/jb/Desktop/Payload-SDK-3.10.0-task/uav_smoke_platform/cpp/dji_adapter/build-mingw/CMakeFiles/mission_planner_test.dir
+C:/Users/jb/Desktop/Payload-SDK-3.10.0-task/uav_smoke_platform/cpp/dji_adapter/build-mingw/CMakeFiles/mission_plan_writer_test.dir
+C:/Users/jb/Desktop/Payload-SDK-3.10.0-task/uav_smoke_platform/cpp/dji_adapter/build-mingw/CMakeFiles/test.dir
+C:/Users/jb/Desktop/Payload-SDK-3.10.0-task/uav_smoke_platform/cpp/dji_adapter/build-mingw/CMakeFiles/edit_cache.dir
+C:/Users/jb/Desktop/Payload-SDK-3.10.0-task/uav_smoke_platform/cpp/dji_adapter/build-mingw/CMakeFiles/rebuild_cache.dir

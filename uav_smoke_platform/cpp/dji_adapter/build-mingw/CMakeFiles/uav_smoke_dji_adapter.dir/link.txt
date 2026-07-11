@@ -1,0 +1,2 @@
+C:\msys64\ucrt64\bin\ar.exe qc libuav_smoke_dji_adapter.a CMakeFiles/uav_smoke_dji_adapter.dir/src/mission_planner.cpp.obj CMakeFiles/uav_smoke_dji_adapter.dir/src/mission_plan_writer.cpp.obj CMakeFiles/uav_smoke_dji_adapter.dir/src/mock_telemetry_source.cpp.obj CMakeFiles/uav_smoke_dji_adapter.dir/src/mock_video_source.cpp.obj CMakeFiles/uav_smoke_dji_adapter.dir/src/smoke_event_builder.cpp.obj CMakeFiles/uav_smoke_dji_adapter.dir/src/target_geolocation.cpp.obj
+C:\msys64\ucrt64\bin\ranlib.exe libuav_smoke_dji_adapter.a
