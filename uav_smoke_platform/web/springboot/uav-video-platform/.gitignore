@@ -1,0 +1,9 @@
+/target/
+/storage/
+*.log
+*.mp4
+*.pt
+*.onnx
+.idea/
+*.iml
+.vscode/

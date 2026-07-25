@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>无人机视频平台</title>
+    <link rel="stylesheet" href="/webjars/bootstrap/5.3.8/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+        <a class="navbar-brand" href="/">UAV VIDEO</a>
+        <div class="navbar-nav ms-auto">
+            <a class="nav-link" href="/videos">视频库</a>
+            <a class="nav-link" href="/videos/upload">上传视频</a>
+        </div>
+    </div>
+</nav>
+<main class="container py-5">
+    <section class="hero p-5 mb-4">
+        <div class="row align-items-center g-4">
+            <div class="col-lg-8">
+                <p class="text-uppercase small mb-2">V0.3 · Cloud Video MVP</p>
+                <h1 class="display-5 fw-bold">无人机视频管理平台</h1>
+                <p class="lead mb-4">集中上传、查看、播放和管理无人机巡检视频。</p>
+                <a class="btn btn-light btn-lg me-2" href="/videos">浏览视频</a>
+                <a class="btn btn-outline-light btn-lg" href="/videos/upload">上传 MP4</a>
+            </div>
+            <div class="col-lg-4">
+                <div class="bg-white bg-opacity-10 rounded-4 p-4 text-center">
+                    <div class="display-3 fw-bold" th:text="${videoCount}">0</div>
+                    <div>当前有效视频</div>
+                </div>
+            </div>
+        </div>
+    </section>
+    <div class="row g-4">
+        <div class="col-md-4">
+            <div class="card h-100 p-4">
+                <h2 class="h5">本地安全存储</h2>
+                <p class="text-secondary mb-0">视频与数据库元信息分离，磁盘路径不暴露给客户端。</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 p-4">
+                <h2 class="h5">HTML5 在线播放</h2>
+                <p class="text-secondary mb-0">通过视频 ID 受控访问 MP4 媒体内容。</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 p-4">
+                <h2 class="h5">逻辑删除</h2>
+                <p class="text-secondary mb-0">数据库保留删除标记，同时清理对应的本地文件。</p>
+            </div>
+        </div>
+    </div>
+</main>
+</body>
+</html>
