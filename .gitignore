@@ -23,3 +23,7 @@
 *.mp4
 *.avi
 *.mov
+
+# Keep Python interpreter caches out of Git.
+__pycache__/
+*.py[cod]
