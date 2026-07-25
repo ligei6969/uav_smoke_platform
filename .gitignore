@@ -10,3 +10,16 @@
 
 # Keep generated build files out of Git.
 /uav_smoke_platform/build/
+
+# Keep local video inputs out of Git.
+/uav_smoke_platform/data/videos/
+
+# Keep model weights and generated analysis output out of Git.
+/uav_smoke_platform/models/
+/uav_smoke_platform/results/
+/uav_smoke_platform/storage/
+*.pt
+*.onnx
+*.mp4
+*.avi
+*.mov
