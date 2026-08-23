@@ -10,50 +10,41 @@ The current `uav_smoke_platform` version does not claim to reconnect the real UA
 
 ## 2. Current Version
 
-Current version: `V0.1`
+Current version: `V0.4`
 
-V0.1 provides a complete offline C++ business chain and a Python visualization script:
+The project has progressed from an offline mission-planning proof of concept to
+a three-part platform:
 
-- Mock UAV telemetry and mock smoke detection input.
-- Ground target geolocation from image point and UAV pose.
-- Smoke target event construction.
-- Rule-based recheck waypoint generation.
-- JSON mission output.
-- 2D mission visualization.
+- `V0.1`: complete offline C++ smoke geolocation and recheck mission-planning
+  workflow, with JSON output and Python visualization.
+- `V0.2`: real MP4 frame-by-frame smoke analysis using Ultralytics YOLO, with
+  annotated video, detection records, summary statistics, and keyframes.
+- `V0.3`: Spring Boot video-management web MVP backed by MySQL, including
+  upload, list, detail, edit, delete, and HTTP Range video playback.
+- `V0.4`: FastAPI asynchronous smoke-analysis task service, including upload,
+  task status, result retrieval, validation, and isolated task artifacts.
 
-## 3. Business Workflow
+The V0.4 API has been verified end to end with the real `11.mp4` sample. The
+automated Python test suite contains 12 passing tests. See
+[`python/V0.4_VERIFICATION.md`](python/V0.4_VERIFICATION.md) for the recorded
+environment and results.
+
+## 3. Current Business Workflow
 
 ```text
-MockTelemetrySource
-+ Mock DetectionResult
-        |
-        v
-SmokeEventBuilder
-        |
-        v
-CalculateGroundTarget
-        |
-        v
-SmokeTargetEvent
-        |
-        v
-MissionPlanner
-        |
-        v
-MissionPlan
-        |
-        v
-MissionPlanWriter
-        |
-        v
-mission_plan.json
-        |
-        v
-visualize_mission.py
-        |
-        v
-results/mission_plan.png
+Operator -> Spring Boot video web -> MySQL + local video storage
+
+Operator/API client -> FastAPI analysis task -> YOLO video inference
+                    -> annotated video + JSON summary + keyframes
+
+Mock telemetry + detection -> C++ target geolocation
+                           -> recheck mission planning
+                           -> mission_plan.json -> 2D visualization
 ```
+
+These workflows are individually runnable and tested. The Spring Boot web
+application does not yet submit videos to FastAPI or display analysis progress
+and results; that integration is the next milestone.
 
 ## 4. Implemented Features
 
@@ -101,6 +92,24 @@ results/mission_plan.png
   - `mission_planner_test`
   - `mission_plan_writer_test`
 
+- Real video smoke analysis:
+  - Reads MP4 videos frame by frame with OpenCV.
+  - Runs Ultralytics YOLO inference on each decodable frame.
+  - Writes an annotated MP4, positive-frame detections, summary statistics,
+    and first/strongest/last detection keyframes.
+
+- Spring Boot video-management web application:
+  - Stores video metadata in MySQL 8.4.
+  - Supports upload, list, detail, edit, logical delete, and local file cleanup.
+  - Serves MP4 content with HTTP Range support for browser playback.
+
+- FastAPI analysis task service:
+  - `POST /api/v1/analysis-tasks` creates an asynchronous analysis task.
+  - `GET /api/v1/analysis-tasks/{taskId}` returns task status.
+  - `GET /api/v1/analysis-tasks/{taskId}/result` returns the completed summary
+    and artifact paths.
+  - Validates file type, upload size, task state, and output isolation.
+
 ## 5. Project Structure
 
 ```text
@@ -140,10 +149,19 @@ uav_smoke_platform/
       mission_plan.json
   python/
     requirements.txt
-    app/
+    ai_service/
+      analyze_video.py
+      api.py
+      api_config.py
+      task_manager.py
     sim/
       visualize_mission.py
+    tests/
+  web/
+    springboot/
+      uav-video-platform/
   results/
+    api_tasks/
     mission_plan.png
 ```
 
@@ -298,28 +316,63 @@ Output image: C:\Users\jb\Desktop\Payload-SDK-3.10.0-task\uav_smoke_platform\res
 
 ## 11. Current Limitations
 
-V0.1 is an offline validation platform. It intentionally does not implement or reconnect the full hardware stack.
+V0.4 is still a hardware-free validation platform. It intentionally does not
+claim to reconnect the full production UAV stack.
 
 Current limitations:
 
+- The Spring Boot web application and FastAPI analysis service run separately;
+  there is no unified browser workflow yet.
+- Analysis task state is in process memory and is not recovered after a FastAPI
+  restart.
+- FastAPI currently accepts a new uploaded copy of the video instead of reading
+  an existing Spring Boot-managed video through a shared integration contract.
 - This refactored version does not connect to real DJI PSDK hardware.
 - It does not reacquire a real UAV video stream.
-- `DetectionResult` is currently a mock smoke detection result.
-- There is no Python YOLO online inference service in V0.1.
+- The C++ geolocation workflow still receives a mock `DetectionResult`; real
+  YOLO detections are not yet converted into geolocated smoke events.
 - There is no real flight-controller waypoint mission upload.
 - There is no dynamic obstacle avoidance.
 - There is no A* or RRT path planning.
 - There is no PX4 or Gazebo simulation.
 - `MissionPlanner` is only a rule-based recheck waypoint generator.
 
-## 12. Future Work
+## 12. Next Milestone: V0.5 Web and Analysis Integration
 
-Possible next steps:
+The next phase will connect the existing Spring Boot video website to the
+FastAPI smoke-analysis service and deliver one complete operator workflow:
 
-- Replace mock detections with a real offline or online smoke detector.
-- Add video-file input and frame-level detection result generation.
-- Add a hardware adapter behind the existing source interfaces when DJI hardware is available.
-- Add operator-facing result review tools.
-- Add mission export formats compatible with later real flight integration.
+```text
+Upload video -> start analysis -> track progress -> review detections
+             -> play annotated video -> inspect summary and keyframes
+```
 
-Future work should keep offline tests runnable without UAV hardware.
+Planned work:
+
+1. Add analysis-task fields and persistence for each managed video, including
+   task ID, status, error message, timestamps, and result metadata.
+2. Add a Spring Boot FastAPI client with configurable service URL, timeouts,
+   clear error mapping, and no hard-coded environment-specific paths.
+3. Add backend endpoints and service methods to start analysis, query status,
+   and obtain results without requiring the browser to call FastAPI directly.
+4. Extend the video detail page with a start/retry action, progress state,
+   failure feedback, smoke summary, keyframes, and annotated-video playback.
+5. Add polling with terminal states (`COMPLETED` and `FAILED`) and prevent
+   accidental duplicate analysis submissions.
+6. Add Spring Boot unit/integration tests, FastAPI contract tests, and a real
+   MP4 end-to-end verification covering upload through result review.
+7. Update deployment and operating documentation for running MySQL, Spring
+   Boot, FastAPI, the YOLO model, and result storage together.
+
+V0.5 acceptance criteria:
+
+- An operator can complete the entire analysis workflow from the browser.
+- Analysis status and result references survive a Spring Boot restart.
+- Failed analysis can be diagnosed and retried without re-uploading the video.
+- Existing C++, Python, and Spring Boot automated tests remain passing.
+- Offline development remains possible without DJI hardware.
+
+After V0.5, the likely V0.6 direction is to connect real detection frames with
+telemetry for target geolocation and recheck mission generation. Real DJI PSDK
+and flight-controller integration should remain behind the existing adapters
+until hardware is available for safe validation.
