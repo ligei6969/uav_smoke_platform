@@ -34,12 +34,13 @@
             </form>
         </div>
     </div>
-    <div class="card p-3 mb-4">
+    <section class="mb-4" aria-labelledby="original-video-title">
+        <h2 id="original-video-title" class="h5 mb-3">原始视频</h2>
         <video class="video-player" controls preload="metadata">
             <source th:src="@{/media/videos/{id}(id=${video.id})}" type="video/mp4">
             当前浏览器不支持 HTML5 视频播放。
         </video>
-    </div>
+    </section>
     <div class="row g-4">
         <div class="col-lg-8">
             <div class="card p-4 h-100">
@@ -68,6 +69,107 @@
             </div>
         </div>
     </div>
+
+    <section id="analysis-panel"
+             class="analysis-panel mt-5 pt-4"
+             th:attr="data-video-id=${video.id}"
+             aria-labelledby="analysis-title">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+            <div>
+                <h2 id="analysis-title" class="h4 mb-1">烟雾分析</h2>
+                <div class="text-secondary small">
+                    当前状态：<span id="analysis-status" class="badge text-bg-secondary">加载中</span>
+                </div>
+            </div>
+            <button id="analysis-action" class="btn btn-primary" type="button" hidden></button>
+        </div>
+
+        <div id="analysis-request-error" class="alert alert-warning" role="alert" hidden></div>
+
+        <div id="analysis-progress" class="analysis-progress" aria-live="polite" hidden>
+            <div class="progress" role="progressbar" aria-label="分析进行中">
+                <div class="progress-bar progress-bar-striped progress-bar-animated w-100"></div>
+            </div>
+            <div id="analysis-progress-text" class="small text-secondary mt-2"></div>
+        </div>
+
+        <div id="analysis-failure" class="alert alert-danger" role="alert" hidden>
+            <strong>分析失败</strong>
+            <div id="analysis-error-message" class="mt-1"></div>
+        </div>
+
+        <div id="analysis-result" hidden>
+            <div id="smoke-result-banner" class="analysis-result-banner mb-4"></div>
+
+            <div class="analysis-stats mb-4">
+                <div><span>视频时长</span><strong id="stat-duration">--</strong></div>
+                <div><span>视频帧数</span><strong id="stat-frames">--</strong></div>
+                <div><span>烟雾帧数</span><strong id="stat-positive-frames">--</strong></div>
+                <div><span>烟雾帧比例</span><strong id="stat-positive-ratio">--</strong></div>
+                <div><span>最大置信度</span><strong id="stat-max-confidence">--</strong></div>
+                <div><span>平均置信度</span><strong id="stat-mean-confidence">--</strong></div>
+                <div><span>首次检测</span><strong id="stat-first-detection">--</strong></div>
+                <div><span>最后检测</span><strong id="stat-last-detection">--</strong></div>
+            </div>
+
+            <div id="annotated-video-block" class="mb-4" hidden>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3 class="h5 mb-0">标注视频</h3>
+                    <a id="detection-results-link"
+                       class="btn btn-sm btn-outline-secondary"
+                       href="#"
+                       download>下载检测 JSON</a>
+                </div>
+                <video id="annotated-video" class="video-player" controls preload="metadata">
+                    当前浏览器不支持 HTML5 视频播放。
+                </video>
+            </div>
+
+            <div id="keyframes-block" hidden>
+                <h3 class="h5 mb-3">检测关键帧</h3>
+                <div class="keyframe-viewer">
+                    <img id="keyframe-preview"
+                         class="keyframe-image"
+                         alt="检测关键帧预览">
+                    <div class="keyframe-tabs mt-3"
+                         role="tablist"
+                         aria-label="选择检测关键帧并定位标注视频">
+                        <button id="keyframe-first"
+                                class="keyframe-tab"
+                                type="button"
+                                role="tab"
+                                data-label="首次检测"
+                                hidden>
+                            <span>首次检测</span>
+                            <small class="keyframe-time"></small>
+                        </button>
+                        <button id="keyframe-max"
+                                class="keyframe-tab"
+                                type="button"
+                                role="tab"
+                                data-label="最高置信度"
+                                hidden>
+                            <span>最高置信度</span>
+                            <small class="keyframe-time"></small>
+                        </button>
+                        <button id="keyframe-last"
+                                class="keyframe-tab"
+                                type="button"
+                                role="tab"
+                                data-label="最后检测"
+                                hidden>
+                            <span>最后检测</span>
+                            <small class="keyframe-time"></small>
+                        </button>
+                    </div>
+                    <p class="small text-secondary mt-2 mb-0">
+                        点击关键帧名称可将标注视频定位到对应检测时刻。
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
 </main>
+<script src="/js/video-detail.js"></script>
 </body>
 </html>

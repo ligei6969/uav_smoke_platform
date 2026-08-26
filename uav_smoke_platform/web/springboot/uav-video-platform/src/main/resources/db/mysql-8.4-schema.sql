@@ -27,3 +27,47 @@ CREATE TABLE IF NOT EXISTS `uav_video` (
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_0900_ai_ci
   COMMENT='无人机视频元信息';
+
+CREATE TABLE IF NOT EXISTS `video_analysis_task` (
+    `id` BIGINT NOT NULL COMMENT '分析记录 ID（应用生成）',
+    `video_id` BIGINT NOT NULL COMMENT '关联视频 ID',
+    `remote_task_id` VARCHAR(64) NULL COMMENT 'FastAPI 分析任务 ID',
+    `status` VARCHAR(20) NOT NULL COMMENT 'PENDING、RUNNING、COMPLETED 或 FAILED',
+    `error_message` VARCHAR(2000) NULL COMMENT '失败原因',
+    `submitted_at` DATETIME(6) NOT NULL COMMENT '提交时间',
+    `started_at` DATETIME(6) NULL COMMENT '开始推理时间',
+    `completed_at` DATETIME(6) NULL COMMENT '完成或失败时间',
+    `smoke_detected` TINYINT(1) NULL COMMENT '是否检测到烟雾',
+    `fps` DOUBLE NULL,
+    `frame_count` INT UNSIGNED NULL,
+    `duration_sec` DOUBLE NULL,
+    `positive_frame_count` INT UNSIGNED NULL,
+    `positive_frame_ratio` DOUBLE NULL,
+    `first_detection_sec` DOUBLE NULL,
+    `last_detection_sec` DOUBLE NULL,
+    `max_confidence` DOUBLE NULL,
+    `mean_confidence` DOUBLE NULL,
+    `annotated_video_path` VARCHAR(500) NULL,
+    `detection_results_path` VARCHAR(500) NULL,
+    `first_keyframe_path` VARCHAR(500) NULL,
+    `max_keyframe_path` VARCHAR(500) NULL,
+    `last_keyframe_path` VARCHAR(500) NULL,
+    `created_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    `updated_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+        ON UPDATE CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_video_analysis_remote_task_id` (`remote_task_id`),
+    KEY `idx_video_analysis_video_created` (`video_id`, `created_at` DESC),
+    CONSTRAINT `fk_video_analysis_video`
+        FOREIGN KEY (`video_id`) REFERENCES `uav_video` (`id`),
+    CONSTRAINT `chk_video_analysis_status`
+        CHECK (`status` IN ('PENDING', 'RUNNING', 'COMPLETED', 'FAILED')),
+    CONSTRAINT `chk_video_analysis_smoke_detected`
+        CHECK (`smoke_detected` IS NULL OR `smoke_detected` IN (0, 1)),
+    CONSTRAINT `chk_video_analysis_positive_ratio`
+        CHECK (`positive_frame_ratio` IS NULL
+            OR (`positive_frame_ratio` >= 0 AND `positive_frame_ratio` <= 1))
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_0900_ai_ci
+  COMMENT='视频烟雾分析任务及结果';

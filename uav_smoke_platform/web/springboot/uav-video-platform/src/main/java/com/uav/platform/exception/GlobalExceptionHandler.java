@@ -12,6 +12,7 @@ import org.springframework.web.servlet.ModelAndView;
 
 import java.time.LocalDateTime;
 
+/** 把页面 Controller 的异常转换成 Thymeleaf error.html 页面。 */
 @ControllerAdvice(assignableTypes = {
         HomeController.class,
         VideoPageController.class,
@@ -19,6 +20,7 @@ import java.time.LocalDateTime;
 })
 public class GlobalExceptionHandler {
 
+    /** 显示业务异常的真实提示和对应 HTTP 状态码。 */
     @ExceptionHandler(BusinessException.class)
     public ModelAndView handleBusiness(
             BusinessException exception,
@@ -26,6 +28,7 @@ public class GlobalExceptionHandler {
         return errorView(exception.getStatus(), exception.getMessage(), request);
     }
 
+    /** 单独处理超过 Spring multipart 大小限制的上传。 */
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ModelAndView handleUploadLimit(
             MaxUploadSizeExceededException exception,
@@ -36,6 +39,7 @@ public class GlobalExceptionHandler {
                 request);
     }
 
+    /** 其他异常显示通用 500 页面。 */
     @ExceptionHandler(Exception.class)
     public ModelAndView handleUnexpected(
             Exception exception,
@@ -46,6 +50,7 @@ public class GlobalExceptionHandler {
                 request);
     }
 
+    /** 组装 error.html 模板需要的数据。 */
     private ModelAndView errorView(
             HttpStatus status,
             String message,

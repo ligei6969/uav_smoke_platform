@@ -195,7 +195,80 @@ class AnalysisApiTests(unittest.TestCase):
                     "detection_results.json"
                 )
             )
+            self.assertEqual(
+                payload["artifacts"]["annotatedVideo"],
+                "annotated_video.mp4",
+            )
+            self.assertEqual(
+                payload["artifacts"]["keyframes"],
+                [
+                    {
+                        "type": "first_detection",
+                        "path": "keyframes/first_detection.jpg",
+                    }
+                ],
+            )
             self.assertNotIn("detections", payload)
+
+    def test_completed_task_artifacts_support_download_and_range(self):
+        def analyzer(**kwargs):
+            return write_success_artifacts(kwargs["output_dir"])
+
+        application = create_app(self.settings, analyzer)
+        with TestClient(application) as client:
+            task_id = self._create_task(client).json()["taskId"]
+            self.assertEqual(
+                self._wait_for_terminal(client, task_id)["status"],
+                "COMPLETED",
+            )
+            base = "/api/v1/analysis-tasks/{}/artifacts".format(task_id)
+
+            keyframe = client.get(base + "/keyframes/first_detection.jpg")
+            self.assertEqual(keyframe.status_code, 200)
+            self.assertEqual(keyframe.content, b"mock-image")
+            self.assertEqual(keyframe.headers["content-type"], "image/jpeg")
+
+            ranged = client.get(
+                base + "/annotated_video.mp4",
+                headers={"Range": "bytes=0-3"},
+            )
+            self.assertEqual(ranged.status_code, 206)
+            self.assertEqual(ranged.content, b"mock")
+            self.assertEqual(ranged.headers["content-range"], "bytes 0-3/10")
+
+    def test_artifact_path_traversal_is_rejected(self):
+        def analyzer(**kwargs):
+            return write_success_artifacts(kwargs["output_dir"])
+
+        application = create_app(self.settings, analyzer)
+        with TestClient(application) as client:
+            task_id = self._create_task(client).json()["taskId"]
+            self.assertEqual(
+                self._wait_for_terminal(client, task_id)["status"],
+                "COMPLETED",
+            )
+            response = client.get(
+                "/api/v1/analysis-tasks/{}/artifacts/%2E%2E/input/original.mp4".format(
+                    task_id
+                )
+            )
+            self.assertIn(response.status_code, {404, 422})
+
+    def test_artifacts_remain_available_after_api_restart(self):
+        output_dir = (
+            self.settings.results_root / "persisted-task" / "output"
+        )
+        write_success_artifacts(output_dir)
+
+        application = create_app(self.settings, write_success_artifacts)
+        with TestClient(application) as client:
+            response = client.get(
+                "/api/v1/analysis-tasks/persisted-task/artifacts/"
+                "keyframes/first_detection.jpg"
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"mock-image")
 
     def test_failed_task_exposes_real_error_message(self):
         def analyzer(**_kwargs):

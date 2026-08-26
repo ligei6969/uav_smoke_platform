@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, File, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 
 from ai_service.analyze_video import analyze_video
 from ai_service.api_config import ApiSettings
@@ -85,11 +86,11 @@ def _task_status_payload(task: AnalysisTask) -> Dict[str, Any]:
     }
 
 
-def _relative_artifact_path(settings: ApiSettings, path: Path) -> str:
+def _relative_artifact_path(output_dir: Path, path: Path) -> str:
     try:
-        return path.resolve().relative_to(settings.product_root.resolve()).as_posix()
+        return path.resolve().relative_to(output_dir.resolve()).as_posix()
     except ValueError:
-        return path.name
+        raise RuntimeError("Analysis artifact is outside the task output directory")
 
 
 def _summary_payload(summary: Dict[str, Any]) -> Dict[str, Any]:
@@ -119,7 +120,13 @@ def _result_payload(
         raise RuntimeError("Completed task has no summary")
     output_dir = task.output_dir
     keyframes = [
-        _relative_artifact_path(settings, output_dir / item["file"])
+        {
+            "type": item["type"],
+            "path": _relative_artifact_path(
+                output_dir,
+                output_dir / item["file"],
+            ),
+        }
         for item in task.summary.get("keyframes", [])
     ]
     return {
@@ -128,14 +135,51 @@ def _result_payload(
         "videoSummary": _summary_payload(task.summary),
         "artifacts": {
             "annotatedVideo": _relative_artifact_path(
-                settings, output_dir / "annotated_video.mp4"
+                output_dir, output_dir / "annotated_video.mp4"
             ),
             "detectionResults": _relative_artifact_path(
-                settings, output_dir / "detection_results.json"
+                output_dir, output_dir / "detection_results.json"
             ),
             "keyframes": keyframes,
         },
     }
+
+
+def _artifact_output_dir(
+    settings: ApiSettings,
+    manager: AnalysisTaskManager,
+    task_id: str,
+) -> Path:
+    task = manager.get(task_id)
+    if task is not None:
+        if task.status != COMPLETED:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Analysis artifacts are not ready; status={}".format(
+                    task.status
+                ),
+            )
+        return task.output_dir.resolve()
+
+    results_root = settings.results_root.resolve()
+    output_dir = (results_root / task_id / "output").resolve()
+    if not output_dir.is_relative_to(results_root) or not output_dir.is_dir():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Analysis task was not found",
+        )
+    return output_dir
+
+
+def _artifact_path(output_dir: Path, artifact_path: str) -> Path:
+    output_dir = output_dir.resolve()
+    candidate = (output_dir / artifact_path).resolve()
+    if not candidate.is_relative_to(output_dir) or not candidate.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Analysis artifact was not found",
+        )
+    return candidate
 
 
 def create_app(
@@ -234,6 +278,20 @@ def create_app(
                 detail=detail,
             )
         return _result_payload(api_settings, task)
+
+    @application.get(
+        "/api/v1/analysis-tasks/{task_id}/artifacts/{artifact_path:path}"
+    )
+    def get_analysis_artifact(
+        task_id: str,
+        artifact_path: str,
+    ) -> FileResponse:
+        output_dir = _artifact_output_dir(
+            api_settings,
+            manager,
+            task_id,
+        )
+        return FileResponse(_artifact_path(output_dir, artifact_path))
 
     return application
 

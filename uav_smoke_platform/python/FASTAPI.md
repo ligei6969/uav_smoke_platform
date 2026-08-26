@@ -31,8 +31,22 @@ Task files are written to:
 results/api_tasks/{taskId}/
 ├── input/original.mp4
 └── output/
-    ├── annotated_video.mp4
+    ├── annotated_video.mp4      # H.264/AVC for HTML5 playback
     ├── detection_results.json
     ├── video_summary.json
     └── keyframes/
 ```
+
+V0.5 integration endpoints:
+
+```text
+POST /api/v1/analysis-tasks
+GET  /api/v1/analysis-tasks/{taskId}
+GET  /api/v1/analysis-tasks/{taskId}/result
+GET  /api/v1/analysis-tasks/{taskId}/artifacts/{relativePath}
+```
+
+Result payloads expose paths relative to the task output directory. The
+artifact endpoint rejects paths outside that directory and supports HTTP Range
+requests for annotated-video playback. The Spring Boot web application proxies
+these endpoints, so browsers do not need direct access to FastAPI.

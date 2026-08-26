@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 
+/** 使用本机目录保存原始视频的文件存储实现。 */
 @Service
 public class LocalFileStorageService implements FileStorageService {
 
@@ -22,6 +23,7 @@ public class LocalFileStorageService implements FileStorageService {
 
     private final Path videoRoot;
 
+    /** 启动时解析并创建存储根目录。 */
     public LocalFileStorageService(StorageProperties properties) {
         this.videoRoot = properties.getVideoRoot().toAbsolutePath().normalize();
         try {
@@ -31,6 +33,7 @@ public class LocalFileStorageService implements FileStorageService {
         }
     }
 
+    /** 每个视频使用独立目录，文件统一命名为 original.mp4。 */
     @Override
     public String store(Long videoId, MultipartFile file) {
         String relativePath = videoId + "/" + STORED_FILENAME;
@@ -49,6 +52,7 @@ public class LocalFileStorageService implements FileStorageService {
         }
     }
 
+    /** 将磁盘文件包装成 Spring Resource，Controller 可以直接返回它。 */
     @Override
     public Resource load(String relativePath) {
         Path file = resolveSafe(relativePath);
@@ -58,6 +62,7 @@ public class LocalFileStorageService implements FileStorageService {
         return new FileSystemResource(file);
     }
 
+    /** 删除视频文件，并在目录为空时删除视频目录。 */
     @Override
     public void delete(String relativePath) {
         Path file = resolveSafe(relativePath);
@@ -78,6 +83,9 @@ public class LocalFileStorageService implements FileStorageService {
         }
     }
 
+    /**
+     * 把相对路径限制在 videoRoot 内，防止 ../ 访问或删除项目外的文件。
+     */
     private Path resolveSafe(String relativePath) {
         if (relativePath == null || relativePath.isBlank()) {
             throw new BusinessException(HttpStatus.NOT_FOUND, "视频文件路径为空");

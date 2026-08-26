@@ -3,6 +3,7 @@
 import argparse
 import json
 import math
+import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -12,6 +13,64 @@ KEYFRAME_FILENAMES = {
     "max_confidence": "max_confidence.jpg",
     "last_detection": "last_detection.jpg",
 }
+
+def browser_transcode_command(
+    ffmpeg_executable: str,
+    source: Path,
+    destination: Path,
+) -> List[str]:
+    """Build the FFmpeg command used for browser-compatible MP4 output."""
+    return [
+        ffmpeg_executable,
+        "-nostdin",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-i",
+        str(source),
+        "-map",
+        "0:v:0",
+        "-an",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "23",
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart",
+        str(destination),
+    ]
+
+
+def transcode_browser_video(source: Path, destination: Path) -> None:
+    """Transcode an intermediate video to H.264/AVC for HTML5 playback."""
+    try:
+        import imageio_ffmpeg
+    except ImportError as exc:
+        raise RuntimeError(
+            "imageio-ffmpeg is required for browser-compatible video"
+        ) from exc
+
+    completed = subprocess.run(
+        browser_transcode_command(
+            imageio_ffmpeg.get_ffmpeg_exe(),
+            source,
+            destination,
+        ),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        destination.unlink(missing_ok=True)
+        detail = completed.stderr.strip() or "unknown FFmpeg error"
+        raise RuntimeError("Unable to encode H.264 annotated video: {}".format(detail))
+    if not destination.is_file() or destination.stat().st_size <= 0:
+        raise RuntimeError("FFmpeg did not create the annotated video")
 
 
 def frame_max_confidence(frame_result: Dict[str, Any]) -> float:
@@ -197,8 +256,9 @@ def analyze_video(
         )
 
     annotated_video = output_dir / "annotated_video.mp4"
+    intermediate_video = output_dir / "annotated_video.processing.mp4"
     writer = cv2.VideoWriter(
-        str(annotated_video),
+        str(intermediate_video),
         cv2.VideoWriter_fourcc(*"mp4v"),
         fps,
         (width, height),
@@ -206,7 +266,9 @@ def analyze_video(
     if not writer.isOpened():
         capture.release()
         raise RuntimeError(
-            "Unable to create annotated video: {}".format(annotated_video)
+            "Unable to create intermediate annotated video: {}".format(
+                intermediate_video
+            )
         )
 
     print("Loading model: {}".format(model_path), flush=True)
@@ -280,8 +342,11 @@ def analyze_video(
 
     if processed_frames == 0:
         raise RuntimeError("No frames were decoded from the video")
-    if not annotated_video.is_file() or annotated_video.stat().st_size == 0:
-        raise RuntimeError("Annotated video was not created correctly")
+    if not intermediate_video.is_file() or intermediate_video.stat().st_size == 0:
+        raise RuntimeError("Intermediate annotated video was not created correctly")
+
+    transcode_browser_video(intermediate_video, annotated_video)
+    intermediate_video.unlink()
 
     detection_payload = {
         "video": str(video_path),

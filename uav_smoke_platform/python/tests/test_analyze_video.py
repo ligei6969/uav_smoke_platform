@@ -7,7 +7,11 @@ PYTHON_DIR = Path(__file__).resolve().parents[1]
 if str(PYTHON_DIR) not in sys.path:
     sys.path.insert(0, str(PYTHON_DIR))
 
-from ai_service.analyze_video import build_video_summary, select_keyframes
+from ai_service.analyze_video import (
+    browser_transcode_command,
+    build_video_summary,
+    select_keyframes,
+)
 
 
 def detection_frame(frame_id, fps, confidences):
@@ -27,6 +31,18 @@ def detection_frame(frame_id, fps, confidences):
 
 
 class AnalyzeVideoTests(unittest.TestCase):
+    def test_annotated_video_transcode_is_browser_compatible(self):
+        command = browser_transcode_command(
+            "ffmpeg",
+            Path("source.mp4"),
+            Path("annotated.mp4"),
+        )
+
+        self.assertIn("libx264", command)
+        self.assertIn("yuv420p", command)
+        self.assertIn("+faststart", command)
+        self.assertEqual(command[-1], "annotated.mp4")
+
     def test_summary_without_detections(self):
         summary = build_video_summary(
             "empty.mp4",

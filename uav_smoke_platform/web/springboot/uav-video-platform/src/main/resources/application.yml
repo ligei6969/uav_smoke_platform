@@ -28,3 +28,7 @@ mybatis-plus:
 app:
   storage:
     video-root: storage/videos
+  analysis:
+    base-url: ${SMOKE_ANALYSIS_URL:http://127.0.0.1:8000}
+    connect-timeout: 5s
+    request-timeout: 30m

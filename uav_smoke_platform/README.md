@@ -10,7 +10,7 @@ The current `uav_smoke_platform` version does not claim to reconnect the real UA
 
 ## 2. Current Version
 
-Current version: `V0.4`
+Current version: `V0.5`
 
 The project has progressed from an offline mission-planning proof of concept to
 a three-part platform:
@@ -23,28 +23,31 @@ a three-part platform:
   upload, list, detail, edit, delete, and HTTP Range video playback.
 - `V0.4`: FastAPI asynchronous smoke-analysis task service, including upload,
   task status, result retrieval, validation, and isolated task artifacts.
+- `V0.5`: Spring Boot and FastAPI integration, including persisted analysis
+  attempts, browser-side status polling, result review, retry, and proxied
+  annotated video and keyframes.
 
-The V0.4 API has been verified end to end with the real `11.mp4` sample. The
-automated Python test suite contains 12 passing tests. See
-[`python/V0.4_VERIFICATION.md`](python/V0.4_VERIFICATION.md) for the recorded
-environment and results.
+The automated suites currently contain 15 Python tests and 21 Spring Boot
+tests. The earlier real-model `11.mp4` verification is recorded in
+[`python/V0.4_VERIFICATION.md`](python/V0.4_VERIFICATION.md), and the complete
+web-to-inference V0.5 verification is recorded in
+[`web/springboot/uav-video-platform/docs/v0.5-verification.md`](web/springboot/uav-video-platform/docs/v0.5-verification.md).
 
 ## 3. Current Business Workflow
 
 ```text
 Operator -> Spring Boot video web -> MySQL + local video storage
-
-Operator/API client -> FastAPI analysis task -> YOLO video inference
-                    -> annotated video + JSON summary + keyframes
+         -> start/status/retry API -> persisted analysis attempt
+         -> FastAPI analysis task -> YOLO video inference
+         -> Spring Boot media proxy -> annotated video + summary + keyframes
 
 Mock telemetry + detection -> C++ target geolocation
                            -> recheck mission planning
                            -> mission_plan.json -> 2D visualization
 ```
 
-These workflows are individually runnable and tested. The Spring Boot web
-application does not yet submit videos to FastAPI or display analysis progress
-and results; that integration is the next milestone.
+The browser communicates only with Spring Boot. FastAPI addresses and local
+artifact paths are not exposed to the operator-facing page.
 
 ## 4. Implemented Features
 
@@ -316,17 +319,16 @@ Output image: C:\Users\jb\Desktop\Payload-SDK-3.10.0-task\uav_smoke_platform\res
 
 ## 11. Current Limitations
 
-V0.4 is still a hardware-free validation platform. It intentionally does not
+V0.5 is still a hardware-free validation platform. It intentionally does not
 claim to reconnect the full production UAV stack.
 
 Current limitations:
 
-- The Spring Boot web application and FastAPI analysis service run separately;
-  there is no unified browser workflow yet.
 - Analysis task state is in process memory and is not recovered after a FastAPI
-  restart.
-- FastAPI currently accepts a new uploaded copy of the video instead of reading
-  an existing Spring Boot-managed video through a shared integration contract.
+  restart. Spring Boot persists submitted task IDs and completed result metadata,
+  but an in-progress task lost by FastAPI is marked failed and must be retried.
+- Video bytes are transferred from Spring Boot to FastAPI for each analysis
+  attempt, so both services temporarily keep a copy of the source video.
 - This refactored version does not connect to real DJI PSDK hardware.
 - It does not reacquire a real UAV video stream.
 - The C++ geolocation workflow still receives a mock `DetectionResult`; real
@@ -337,31 +339,30 @@ Current limitations:
 - There is no PX4 or Gazebo simulation.
 - `MissionPlanner` is only a rule-based recheck waypoint generator.
 
-## 12. Next Milestone: V0.5 Web and Analysis Integration
+## 12. V0.5 Web and Analysis Integration
 
-The next phase will connect the existing Spring Boot video website to the
-FastAPI smoke-analysis service and deliver one complete operator workflow:
+V0.5 delivers the complete operator workflow:
 
 ```text
 Upload video -> start analysis -> track progress -> review detections
              -> play annotated video -> inspect summary and keyframes
 ```
 
-Planned work:
+Implemented work:
 
-1. Add analysis-task fields and persistence for each managed video, including
+1. Added a separate analysis-attempt table containing
    task ID, status, error message, timestamps, and result metadata.
-2. Add a Spring Boot FastAPI client with configurable service URL, timeouts,
+2. Added a Spring Boot FastAPI client with configurable service URL, timeouts,
    clear error mapping, and no hard-coded environment-specific paths.
-3. Add backend endpoints and service methods to start analysis, query status,
+3. Added backend endpoints and service methods to start analysis, query status,
    and obtain results without requiring the browser to call FastAPI directly.
-4. Extend the video detail page with a start/retry action, progress state,
+4. Extended the video detail page with a start/retry action, progress state,
    failure feedback, smoke summary, keyframes, and annotated-video playback.
-5. Add polling with terminal states (`COMPLETED` and `FAILED`) and prevent
-   accidental duplicate analysis submissions.
-6. Add Spring Boot unit/integration tests, FastAPI contract tests, and a real
-   MP4 end-to-end verification covering upload through result review.
-7. Update deployment and operating documentation for running MySQL, Spring
+5. Added polling with terminal states (`COMPLETED` and `FAILED`) and duplicate
+   active-task prevention.
+6. Added Spring Boot service/client tests and FastAPI artifact and HTTP Range
+   contract tests.
+7. Updated deployment and operating documentation for running MySQL, Spring
    Boot, FastAPI, the YOLO model, and result storage together.
 
 V0.5 acceptance criteria:
@@ -372,7 +373,9 @@ V0.5 acceptance criteria:
 - Existing C++, Python, and Spring Boot automated tests remain passing.
 - Offline development remains possible without DJI hardware.
 
-After V0.5, the likely V0.6 direction is to connect real detection frames with
+## 13. Next Milestone: V0.6 Geolocation Integration
+
+The next direction is to connect real detection frames with synchronized
 telemetry for target geolocation and recheck mission generation. Real DJI PSDK
 and flight-controller integration should remain behind the existing adapters
 until hardware is available for safe validation.
