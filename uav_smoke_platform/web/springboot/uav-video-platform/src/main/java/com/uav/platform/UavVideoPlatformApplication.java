@@ -1,6 +1,7 @@
 package com.uav.platform;
 
 import com.uav.platform.config.AnalysisProperties;
+import com.uav.platform.config.GeolocationProperties;
 import com.uav.platform.config.MapProperties;
 import com.uav.platform.config.StorageProperties;
 import com.uav.platform.config.TelemetryProperties;
@@ -22,6 +23,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableConfigurationProperties({
         StorageProperties.class,
         AnalysisProperties.class,
+        GeolocationProperties.class,
         MapProperties.class,
         TelemetryProperties.class
 })

@@ -50,3 +50,9 @@ app:
     max-track-points: ${TELEMETRY_MAX_TRACK_POINTS:600}
     center-latitude: ${UAV_CENTER_LATITUDE:31.2304}
     center-longitude: ${UAV_CENTER_LONGITUDE:121.4737}
+  geolocation:
+    horizontal-fov-deg: ${CAMERA_HORIZONTAL_FOV_DEG:84.0}
+    detection-window-sec: ${GEOLOCATION_DETECTION_WINDOW_SEC:0.75}
+    recheck-radius-m: ${RECHECK_RADIUS_M:50.0}
+    recheck-altitude-m: ${RECHECK_ALTITUDE_M:65.0}
+    max-detection-artifact-bytes: ${MAX_DETECTION_ARTIFACT_BYTES:52428800}

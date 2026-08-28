@@ -32,7 +32,15 @@ const elements = {
     streamStatus: document.querySelector("#streamStatus"),
     currentVideoTitle: document.querySelector("#currentVideoTitle"),
     currentVideoMeta: document.querySelector("#currentVideoMeta"),
-    goLiveButton: document.querySelector("#goLiveButton")
+    goLiveButton: document.querySelector("#goLiveButton"),
+    geolocationStatus: document.querySelector("#geolocationStatus"),
+    geolocationMessage: document.querySelector("#geolocationMessage"),
+    geoVideoTime: document.querySelector("#geoVideoTime"),
+    geoFrame: document.querySelector("#geoFrame"),
+    geoConfidence: document.querySelector("#geoConfidence"),
+    geoReferenceError: document.querySelector("#geoReferenceError"),
+    geoTelemetryCoordinates: document.querySelector("#geoTelemetryCoordinates"),
+    geoTargetCoordinates: document.querySelector("#geoTargetCoordinates")
 };
 
 const state = {
@@ -42,8 +50,14 @@ const state = {
     firePoint: null,
     smokeTargets: [],
     missionWaypoints: [],
+    baselineSmokeTargets: [],
+    baselineMissionWaypoints: [],
     videos: [],
-    currentVideo: null
+    currentVideo: null,
+    geolocationRequestToken: 0,
+    geolocationPending: false,
+    lastGeolocationFetchMs: 0,
+    hasLocatedTarget: false
 };
 
 function setConnectionStatus(text, kind) {
@@ -515,6 +529,133 @@ function setStreamStatus(text, kind) {
     elements.streamStatus.className = `badge text-bg-${kind}`;
 }
 
+function setGeolocationStatus(text, kind) {
+    elements.geolocationStatus.textContent = text;
+    elements.geolocationStatus.className = `badge text-bg-${kind}`;
+}
+
+function restoreBaselineMission() {
+    state.smokeTargets = [...state.baselineSmokeTargets];
+    state.missionWaypoints = [...state.baselineMissionWaypoints];
+    elements.smokeCount.textContent = state.smokeTargets.length.toString();
+    elements.waypointCount.textContent = state.missionWaypoints.length.toString();
+    renderTargets(state.smokeTargets);
+    state.provider?.setSmokeTargets(state.smokeTargets);
+    state.provider?.setMissionWaypoints(state.missionWaypoints);
+}
+
+function resetGeolocation() {
+    state.geolocationRequestToken += 1;
+    state.geolocationPending = false;
+    state.lastGeolocationFetchMs = 0;
+    state.hasLocatedTarget = false;
+    setGeolocationStatus("等待检测", "secondary");
+    elements.geolocationMessage.textContent = "正在等待视频时间与检测结果同步";
+    elements.geoVideoTime.textContent = "--";
+    elements.geoFrame.textContent = "--";
+    elements.geoConfidence.textContent = "--";
+    elements.geoReferenceError.textContent = "--";
+    elements.geoTelemetryCoordinates.textContent = "--";
+    elements.geoTargetCoordinates.textContent = "--";
+    restoreBaselineMission();
+}
+
+function formatDistance(distance) {
+    if (!Number.isFinite(distance)) {
+        return "--";
+    }
+    return distance >= 1000
+        ? `${(distance / 1000).toFixed(2)} km`
+        : `${distance.toFixed(1)} m`;
+}
+
+function renderGeolocation(result) {
+    elements.geoVideoTime.textContent = `${result.videoTimeSec.toFixed(2)} s`;
+    if (!result.detected) {
+        setGeolocationStatus("当前无烟雾", "secondary");
+        elements.geolocationMessage.textContent = state.hasLocatedTarget
+            ? "当前画面没有检测框，地图保留最近一次定位结果"
+            : "当前画面附近没有烟雾检测帧";
+        elements.geoFrame.textContent = "--";
+        elements.geoConfidence.textContent = "--";
+        return;
+    }
+
+    elements.geoFrame.textContent = `#${result.frameId} · ${result.detectionTimeSec.toFixed(2)} s`;
+    elements.geoConfidence.textContent = `${Math.round(result.confidence * 100)}%`;
+    if (!result.geolocated || !result.target) {
+        setGeolocationStatus("定位失败", "warning");
+        elements.geolocationMessage.textContent = "检测到烟雾，但当前相机射线无法与地面相交";
+        return;
+    }
+
+    state.hasLocatedTarget = true;
+    setGeolocationStatus("定位成功", "success");
+    elements.geolocationMessage.textContent = "真实检测框与模拟同步遥测已生成目标和复查航点";
+    elements.geoReferenceError.textContent = formatDistance(result.referenceErrorM);
+    elements.geoTelemetryCoordinates.textContent =
+        `${result.telemetry.latitude.toFixed(6)}, ${result.telemetry.longitude.toFixed(6)}`;
+    elements.geoTargetCoordinates.textContent =
+        `${result.target.latitude.toFixed(6)}, ${result.target.longitude.toFixed(6)}`;
+
+    state.smokeTargets = [result.target];
+    state.missionWaypoints = result.missionWaypoints ?? [];
+    elements.smokeCount.textContent = state.smokeTargets.length.toString();
+    elements.waypointCount.textContent = state.missionWaypoints.length.toString();
+    renderTargets(state.smokeTargets);
+    state.provider?.setSmokeTargets(state.smokeTargets);
+    state.provider?.setMissionWaypoints(state.missionWaypoints);
+}
+
+async function updateVideoGeolocation(force = false) {
+    if (!state.currentVideo || elements.videoPlayer.readyState < 1) {
+        return;
+    }
+    const now = performance.now();
+    if (!force && (state.geolocationPending
+            || now - state.lastGeolocationFetchMs < 750)) {
+        return;
+    }
+    if (force && state.geolocationPending) {
+        // 拖动进度条时让新位置优先；旧响应会被请求令牌丢弃。
+        state.geolocationRequestToken += 1;
+        state.geolocationPending = false;
+    }
+    state.geolocationPending = true;
+    state.lastGeolocationFetchMs = now;
+    const requestToken = ++state.geolocationRequestToken;
+    const videoId = String(state.currentVideo.id);
+    const timeSec = Math.max(0, elements.videoPlayer.currentTime || 0);
+    if (force) {
+        setGeolocationStatus("同步中", "primary");
+    }
+    try {
+        const query = new URLSearchParams({timeSec: timeSec.toFixed(3)});
+        const response = await fetch(
+            `/api/videos/${encodeURIComponent(videoId)}/geolocation?${query}`
+        );
+        const envelope = await response.json().catch(() => null);
+        if (!response.ok || !envelope?.success || !envelope.data) {
+            throw new Error(envelope?.message || "视频定位接口返回异常");
+        }
+        if (requestToken !== state.geolocationRequestToken
+                || videoId !== String(state.currentVideo?.id)) {
+            return;
+        }
+        renderGeolocation(envelope.data);
+    } catch (error) {
+        if (requestToken !== state.geolocationRequestToken) {
+            return;
+        }
+        setGeolocationStatus("定位不可用", "danger");
+        elements.geolocationMessage.textContent = error.message;
+    } finally {
+        if (requestToken === state.geolocationRequestToken) {
+            state.geolocationPending = false;
+        }
+    }
+}
+
 function showVideoEmpty(title, message) {
     const heading = document.createElement("strong");
     heading.textContent = title;
@@ -573,6 +714,7 @@ function selectVideoSource(videoId) {
         return;
     }
     state.currentVideo = video;
+    resetGeolocation();
     elements.currentVideoTitle.textContent = video.title;
     elements.currentVideoMeta.textContent = `${video.originalFilename} · ${formatFileSize(video.fileSize)} · 循环模拟实时传输`;
     elements.videoEmpty.classList.add("d-none");
@@ -627,6 +769,8 @@ async function initialize() {
         state.firePoint = snapshot.firePoint ?? null;
         state.smokeTargets = snapshot.smokeTargets ?? [];
         state.missionWaypoints = snapshot.missionWaypoints ?? [];
+        state.baselineSmokeTargets = [...state.smokeTargets];
+        state.baselineMissionWaypoints = [...state.missionWaypoints];
         state.latest = snapshot.latest;
         elements.sourceBadge.textContent = snapshot.simulation ? "模拟数据" : "真实设备";
         elements.trackCount.textContent = state.track.length.toString();
@@ -638,6 +782,7 @@ async function initialize() {
         await activateMapProvider(config);
         renderTelemetry(state.latest);
         connectTelemetryStream();
+        updateVideoGeolocation(true);
     } catch (error) {
         setConnectionStatus("加载失败", "danger");
         showWarning(`实时监控初始化失败：${error.message}`);
@@ -659,7 +804,12 @@ elements.zoomOut.addEventListener("click", () => state.provider?.zoomOut());
 elements.recenter.addEventListener("click", () => state.provider?.recenter());
 elements.videoSelect.addEventListener("change", event => selectVideoSource(event.target.value));
 elements.goLiveButton.addEventListener("click", goToSimulatedLiveEdge);
-elements.videoPlayer.addEventListener("loadedmetadata", goToSimulatedLiveEdge);
+elements.videoPlayer.addEventListener("loadedmetadata", async () => {
+    await goToSimulatedLiveEdge();
+    await updateVideoGeolocation(true);
+});
+elements.videoPlayer.addEventListener("timeupdate", () => updateVideoGeolocation());
+elements.videoPlayer.addEventListener("seeked", () => updateVideoGeolocation(true));
 elements.videoPlayer.addEventListener("play", () => setStreamStatus("模拟直播中", "danger"));
 elements.videoPlayer.addEventListener("pause", () => {
     if (!elements.videoPlayer.ended) {

@@ -5,12 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>无人机实时监控</title>
     <link rel="stylesheet" href="/webjars/bootstrap/5.3.8/css/bootstrap.min.css">
-    <link rel="stylesheet" href="/css/app.css?v=0.6.3">
+    <link rel="stylesheet" href="/css/app.css?v=0.7.1">
 </head>
-<body>
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+<body class="monitor-page">
+<nav class="navbar navbar-expand-lg navbar-dark monitor-navbar">
     <div class="container-fluid px-lg-4">
-        <a class="navbar-brand" href="/">UAV VIDEO</a>
+        <a class="navbar-brand monitor-brand" href="/">
+            <span class="monitor-brand-mark" aria-hidden="true">U</span>
+            <span>UAV SMOKE<small>MISSION CONTROL</small></span>
+        </a>
         <div class="navbar-nav ms-auto flex-row gap-2">
             <a class="nav-link active" href="/monitor">实时监控</a>
             <a class="nav-link" href="/videos">视频库</a>
@@ -19,27 +22,35 @@
     </div>
 </nav>
 
-<main class="container-fluid px-lg-4 py-4">
-    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+<main class="container-fluid monitor-main px-lg-4 py-4">
+    <header class="monitor-heading">
         <div>
-            <p class="text-uppercase text-secondary small mb-1">V0.6.3 · Realtime Telemetry</p>
-            <h1 class="h3 mb-0">无人机实时监控</h1>
+            <p class="monitor-eyebrow mb-1"><span></span> V0.7.1 · DETECTION GEOLOCATION</p>
+            <h1>无人机实时监控</h1>
+            <p class="monitor-subtitle mb-0">视频检测、飞行遥测与目标定位一体化态势面板</p>
         </div>
-        <div class="d-flex align-items-center gap-3">
-            <div class="form-check form-switch mb-0">
+        <div class="monitor-heading-actions">
+            <div class="follow-control form-check form-switch mb-0">
                 <input class="form-check-input" type="checkbox" role="switch" id="followUav" checked>
                 <label class="form-check-label" for="followUav"
                        title="手动缩放或拖动地图时会自动关闭跟随">跟随无人机</label>
             </div>
             <span id="connectionStatus" class="badge text-bg-secondary">正在连接</span>
         </div>
-    </div>
+    </header>
 
     <div id="mapWarning" class="alert alert-warning d-none" role="alert"></div>
 
     <div class="monitor-layout">
         <div class="monitor-stage">
-            <section class="card map-card" aria-label="无人机地图">
+            <section class="card map-card monitor-panel" aria-label="无人机地图">
+                <div class="panel-heading">
+                    <div>
+                        <p class="panel-kicker mb-1">FLIGHT SITUATION</p>
+                        <h2>飞行态势地图</h2>
+                    </div>
+                    <span class="panel-live"><i></i>实时轨迹</span>
+                </div>
                 <div class="map-shell">
                     <div id="liveMap" class="live-map"></div>
                     <div id="mapFallback" class="map-fallback d-none">
@@ -66,11 +77,11 @@
                 </div>
             </section>
 
-            <section class="card live-stream-card" aria-labelledby="live-stream-title">
+            <section class="card live-stream-card monitor-panel" aria-labelledby="live-stream-title">
                 <div class="live-stream-header">
                     <div>
-                        <p class="text-uppercase text-secondary small mb-1">Uploaded Video · Live Simulation</p>
-                        <h2 id="live-stream-title" class="h6 mb-0">模拟实时视频</h2>
+                        <p class="panel-kicker mb-1">VIDEO DOWNLINK</p>
+                        <h2 id="live-stream-title">模拟实时视频</h2>
                     </div>
                     <span id="streamStatus" class="badge text-bg-secondary">正在读取视频</span>
                 </div>
@@ -109,9 +120,12 @@
         </div>
 
         <aside class="monitor-sidebar">
-            <section class="card p-3 mb-3">
+            <section class="card dashboard-card telemetry-card">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h2 class="h6 mb-0">实时遥测</h2>
+                    <div>
+                        <p class="card-kicker mb-1">TELEMETRY</p>
+                        <h2>实时遥测</h2>
+                    </div>
                     <span id="dataSourceBadge" class="badge text-bg-info">模拟数据</span>
                 </div>
                 <div class="telemetry-grid">
@@ -140,8 +154,34 @@
                 </div>
             </section>
 
-            <section class="card p-3 mb-3">
-                <h2 class="h6 mb-3">任务概况</h2>
+            <section class="card dashboard-card geolocation-card">
+                <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                    <div>
+                        <p class="card-kicker mb-1">GEOLOCATION</p>
+                        <h2>视频定位联动</h2>
+                    </div>
+                    <span id="geolocationStatus" class="badge text-bg-secondary">等待视频</span>
+                </div>
+                <p id="geolocationMessage" class="small text-secondary mb-3">
+                    真实检测框将与同一视频时刻的模拟遥测同步定位
+                </p>
+                <div class="geolocation-grid">
+                    <div><span>视频时间</span><strong id="geoVideoTime">--</strong></div>
+                    <div><span>检测帧</span><strong id="geoFrame">--</strong></div>
+                    <div><span>识别准确率</span><strong id="geoConfidence">--</strong></div>
+                    <div><span>固定火点偏差</span><strong id="geoReferenceError">--</strong></div>
+                    <div class="geolocation-wide">
+                        <span>同步遥测坐标</span><strong id="geoTelemetryCoordinates">--</strong>
+                    </div>
+                    <div class="geolocation-wide">
+                        <span>计算目标坐标</span><strong id="geoTargetCoordinates">--</strong>
+                    </div>
+                </div>
+            </section>
+
+            <section class="card dashboard-card mission-card">
+                <p class="card-kicker mb-1">MISSION SUMMARY</p>
+                <h2 class="mb-3">任务概况</h2>
                 <dl class="mission-summary mb-0">
                     <div><dt>飞行轨迹点</dt><dd id="trackCount">0</dd></div>
                     <div><dt>疑似烟雾目标</dt><dd id="smokeCount">0</dd></div>
@@ -161,11 +201,12 @@
                 <p id="mapModeStatus" class="small text-secondary mt-2 mb-0">正在读取地图配置</p>
             </section>
 
-            <section class="card p-3">
-                <h2 class="h6 mb-2">疑似烟雾目标列表</h2>
+            <section class="card dashboard-card target-card">
+                <p class="card-kicker mb-1">DETECTED TARGETS</p>
+                <h2 class="mb-2">疑似烟雾目标列表</h2>
                 <p class="target-score-help">
-                    “识别准确率”表示演示检测器有多倾向于把该目标识别为烟雾。
-                    当前数值是模拟数据，不是实际模型推理结果，也不代表火情严重程度。
+                    视频联动后的“识别准确率”来自该视频已有的 YOLO 检测结果；
+                    坐标定位使用模拟遥测，仅用于流程验证，也不代表火情严重程度。
                 </p>
                 <div id="smokeTargetList" class="target-list text-secondary small">等待数据</div>
             </section>
@@ -173,6 +214,6 @@
     </div>
 </main>
 
-<script type="module" src="/js/live-monitor.js?v=0.6.3.1"></script>
+<script type="module" src="/js/live-monitor.js?v=0.7.1"></script>
 </body>
 </html>

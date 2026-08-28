@@ -11,5 +11,8 @@ public interface TelemetryService {
 
     TelemetrySnapshotResponse snapshot();
 
+    /** 返回与视频相对时间同步的遥测；真实适配器可改为按采集时间查询。 */
+    TelemetrySampleResponse sampleAtVideoTime(double videoTimeSec);
+
     SseEmitter subscribe();
 }

@@ -24,6 +24,9 @@ import java.util.concurrent.atomic.AtomicLong;
 @Service
 public class MockTelemetryService implements TelemetryService {
 
+    private static final Instant REPLAY_STARTED_AT = Instant.parse("2026-01-01T00:00:00Z");
+    private static final double EARTH_RADIUS_M = 6371008.8;
+
     private final TelemetryProperties properties;
     private final AtomicLong sequence = new AtomicLong();
     private final Deque<TelemetrySampleResponse> track = new ArrayDeque<>();
@@ -35,7 +38,7 @@ public class MockTelemetryService implements TelemetryService {
 
     public MockTelemetryService(TelemetryProperties properties) {
         this.properties = properties;
-        this.latest = createSample(0L);
+        this.latest = createSample(0L, Instant.now());
         this.track.add(latest);
         this.firePoint = createFirePoint();
         this.smokeTargets = createSmokeTargets();
@@ -63,6 +66,20 @@ public class MockTelemetryService implements TelemetryService {
     }
 
     @Override
+    public TelemetrySampleResponse sampleAtVideoTime(double videoTimeSec) {
+        if (!Double.isFinite(videoTimeSec) || videoTimeSec < 0.0) {
+            throw new IllegalArgumentException("视频时间必须是非负有限数值");
+        }
+        long elapsedMs = Math.round(videoTimeSec * 1000.0);
+        long intervalMs = Math.max(1L, properties.getIntervalMs());
+        long replaySequence = elapsedMs / intervalMs;
+        TelemetrySampleResponse base = createSample(
+                replaySequence,
+                REPLAY_STARTED_AT.plusMillis(elapsedMs));
+        return pointCameraAtFire(base);
+    }
+
+    @Override
     public SseEmitter subscribe() {
         SseEmitter emitter = new SseEmitter(0L);
         subscribers.add(emitter);
@@ -80,7 +97,7 @@ public class MockTelemetryService implements TelemetryService {
             return;
         }
         long nextSequence = sequence.incrementAndGet();
-        TelemetrySampleResponse sample = createSample(nextSequence);
+        TelemetrySampleResponse sample = createSample(nextSequence, Instant.now());
         latest = sample;
         synchronized (track) {
             track.addLast(sample);
@@ -106,7 +123,7 @@ public class MockTelemetryService implements TelemetryService {
         }
     }
 
-    private TelemetrySampleResponse createSample(long sampleSequence) {
+    private TelemetrySampleResponse createSample(long sampleSequence, Instant timestamp) {
         double angle = sampleSequence * Math.toRadians(3.0);
         double latitudeOffset = 0.0022 * Math.sin(angle);
         double longitudeOffset = 0.0028 * Math.sin(angle) * Math.cos(angle);
@@ -118,13 +135,64 @@ public class MockTelemetryService implements TelemetryService {
         }
         return new TelemetrySampleResponse(
                 sampleSequence,
-                Instant.now(),
+                timestamp,
                 properties.getCenterLatitude() + latitudeOffset,
                 properties.getCenterLongitude() + longitudeOffset,
                 82.0 + 12.0 * Math.sin(angle * 2.0),
                 heading,
                 -48.0 - 8.0 * Math.sin(angle),
                 12.5 + 1.5 * Math.cos(angle * 2.0));
+    }
+
+    /** 回放遥测让相机光轴指向固定火点，检测框偏移随后产生可验证的定位误差。 */
+    private TelemetrySampleResponse pointCameraAtFire(TelemetrySampleResponse sample) {
+        double bearing = initialBearingDeg(
+                sample.latitude(), sample.longitude(),
+                firePoint.latitude(), firePoint.longitude());
+        double groundDistance = groundDistanceM(
+                sample.latitude(), sample.longitude(),
+                firePoint.latitude(), firePoint.longitude());
+        double gimbalPitch = -Math.toDegrees(Math.atan2(
+                sample.altitudeM(), Math.max(groundDistance, 0.1)));
+        return new TelemetrySampleResponse(
+                sample.sequence(),
+                sample.timestamp(),
+                sample.latitude(),
+                sample.longitude(),
+                sample.altitudeM(),
+                bearing,
+                gimbalPitch,
+                sample.speedMps());
+    }
+
+    private double initialBearingDeg(
+            double fromLatitude,
+            double fromLongitude,
+            double toLatitude,
+            double toLongitude) {
+        double firstLatitude = Math.toRadians(fromLatitude);
+        double secondLatitude = Math.toRadians(toLatitude);
+        double longitudeDelta = Math.toRadians(toLongitude - fromLongitude);
+        double y = Math.sin(longitudeDelta) * Math.cos(secondLatitude);
+        double x = Math.cos(firstLatitude) * Math.sin(secondLatitude)
+                - Math.sin(firstLatitude) * Math.cos(secondLatitude)
+                * Math.cos(longitudeDelta);
+        return (Math.toDegrees(Math.atan2(y, x)) + 360.0) % 360.0;
+    }
+
+    private double groundDistanceM(
+            double firstLatitude,
+            double firstLongitude,
+            double secondLatitude,
+            double secondLongitude) {
+        double latitudeDelta = Math.toRadians(secondLatitude - firstLatitude);
+        double longitudeDelta = Math.toRadians(secondLongitude - firstLongitude);
+        double firstLatitudeRad = Math.toRadians(firstLatitude);
+        double secondLatitudeRad = Math.toRadians(secondLatitude);
+        double haversine = Math.pow(Math.sin(latitudeDelta / 2.0), 2.0)
+                + Math.cos(firstLatitudeRad) * Math.cos(secondLatitudeRad)
+                * Math.pow(Math.sin(longitudeDelta / 2.0), 2.0);
+        return 2.0 * EARTH_RADIUS_M * Math.asin(Math.sqrt(haversine));
     }
 
     private List<GeoPointResponse> createSmokeTargets() {

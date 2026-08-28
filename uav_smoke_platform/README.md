@@ -10,7 +10,7 @@ The current `uav_smoke_platform` version does not claim to reconnect the real UA
 
 ## 2. Current Version
 
-Current version: `V0.6`
+Current version: `V0.7.1`
 
 The project has progressed from an offline mission-planning proof of concept to
 a three-part platform:
@@ -32,8 +32,15 @@ a three-part platform:
   smoke targets, mission waypoints, and a no-map fallback. The monitor can play
   every uploaded video beside the map as a selectable simulated live feed. A
   Google Maps provider interface is reserved but not activated.
+- `V0.7`: video-time synchronized target geolocation. The monitor reads the
+  completed YOLO detection artifact for the selected video, aligns the nearest
+  detection frame with deterministic replay telemetry, calculates a geographic
+  smoke-target position, and generates four recheck waypoints on the live map.
+- `V0.7.1`: monitoring-page refinement with equal-height map/video workspaces,
+  a wider and clearer telemetry sidebar, stronger information hierarchy, and
+  responsive desktop, tablet, and mobile layouts.
 
-The automated suites currently contain 16 Python tests and 31 Spring Boot
+The automated suites currently contain 16 Python tests and 34 Spring Boot
 tests. The earlier real-model `11.mp4` verification is recorded in
 [`python/V0.4_VERIFICATION.md`](python/V0.4_VERIFICATION.md), and the complete
 web-to-inference V0.5 verification is recorded in
@@ -53,6 +60,11 @@ Mock UAV telemetry -> Spring Boot snapshot + SSE stream
                    -> fixed fire point + live UAV-to-fire distance
                    -> selectable uploaded-video live simulation
                    -> no-map coordinate fallback
+
+Completed YOLO detections + video-time synchronized replay telemetry
+                   -> Spring Boot geolocation API
+                   -> smoke target coordinate + reference error
+                   -> four recheck waypoints -> live monitor map
 
 Mock telemetry + detection -> C++ target geolocation
                            -> recheck mission planning
@@ -341,7 +353,7 @@ Output image: C:\Users\jb\Desktop\Payload-SDK-3.10.0-task\uav_smoke_platform\res
 
 ## 11. Current Limitations
 
-V0.6 is still a hardware-free validation platform. It intentionally does not
+V0.7.1 is still a hardware-free validation platform. It intentionally does not
 claim to reconnect the full production UAV stack.
 
 Current limitations:
@@ -357,8 +369,9 @@ Current limitations:
 - The default OSM and optional satellite basemaps require internet access. The
   page falls back to a coordinate panel when map resources are unavailable.
 - It does not reacquire a real UAV video stream.
-- The C++ geolocation workflow still receives a mock `DetectionResult`; real
-  YOLO detections are not yet converted into geolocated smoke events.
+- Browser geolocation consumes real YOLO detection boxes, but their synchronized
+  telemetry and camera attitude are deterministic replay data rather than real
+  flight-controller measurements.
 - There is no real flight-controller waypoint mission upload.
 - There is no dynamic obstacle avoidance.
 - There is no A* or RRT path planning.
@@ -414,9 +427,20 @@ MapTiler satellite imagery is optional. Selecting satellite mode without a key,
 or losing access to online map resources, keeps the telemetry page operational
 through an explicit fallback. The Google provider is a reserved adapter only.
 
-## 14. Next Milestone: V0.7 Geolocation Integration
+## 14. V0.7.1 Detection Geolocation Integration
 
-The next direction is to connect real detection frames with synchronized
-telemetry for target geolocation and recheck mission generation. Real DJI PSDK
-and flight-controller integration should remain behind the existing adapters
-until hardware is available for safe validation.
+V0.7.1 connects completed YOLO detection frames with video-time synchronized
+telemetry for target geolocation and recheck mission generation:
+
+```text
+Selected video time -> nearest YOLO detection frame -> replay telemetry sample
+                    -> camera ray/ground intersection -> target coordinate
+                    -> four recheck waypoints -> live map update
+```
+
+The API is available at
+`GET /api/videos/{videoId}/geolocation?timeSec={seconds}`. It returns an
+explicit `LOCATED`, `NO_DETECTION`, or `GEOMETRY_UNAVAILABLE` status, the source
+frame and detection box, synchronized telemetry, target coordinate, and mission
+waypoints. Real DJI PSDK and flight-controller integration remains behind the
+existing adapters until hardware is available for safe validation.

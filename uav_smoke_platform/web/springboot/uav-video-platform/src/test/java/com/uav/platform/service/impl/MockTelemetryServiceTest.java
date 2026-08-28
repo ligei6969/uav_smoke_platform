@@ -45,4 +45,17 @@ class MockTelemetryServiceTest {
         assertThat(service.latest().sequence()).isZero();
         assertThat(service.snapshot().track()).hasSize(1);
     }
+
+    @Test
+    void createsDeterministicReplayTelemetryDirectedAtFixedFirePoint() {
+        MockTelemetryService service = new MockTelemetryService(new TelemetryProperties());
+
+        TelemetrySampleResponse first = service.sampleAtVideoTime(12.5);
+        TelemetrySampleResponse repeated = service.sampleAtVideoTime(12.5);
+
+        assertThat(repeated).isEqualTo(first);
+        assertThat(first.sequence()).isEqualTo(12L);
+        assertThat(first.gimbalPitchDeg()).isBetween(-90.0, 0.0);
+        assertThat(first.headingDeg()).isBetween(0.0, 360.0);
+    }
 }
