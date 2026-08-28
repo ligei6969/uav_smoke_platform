@@ -9,6 +9,7 @@ param(
     [string]$DbPassword = $env:DB_PASSWORD,
     [string]$PythonExecutable = $env:SMOKE_PYTHON,
     [string]$MavenExecutable = $env:MAVEN_CMD,
+    [string]$VideoStorageRoot = $env:UAV_VIDEO_STORAGE_ROOT,
     [string]$MapProvider = $(if ($env:MAP_PROVIDER) { $env:MAP_PROVIDER } else { "maplibre" }),
     [string]$MapStyle = $(if ($env:MAP_STYLE) { $env:MAP_STYLE } else { "osm" }),
     [string]$MapTilerApiKey = $env:MAPTILER_API_KEY
@@ -22,6 +23,13 @@ $runtimeRoot = Join-Path $workspaceRoot ".runtime"
 $logRoot = Join-Path $runtimeRoot "logs"
 $stateFile = Join-Path $runtimeRoot "uav-v0.6-services.json"
 $springRoot = Join-Path $productRoot "web\springboot\uav-video-platform"
+$resolvedVideoStorageRoot = if ([string]::IsNullOrWhiteSpace($VideoStorageRoot)) {
+    Join-Path $runtimeRoot "storage\videos"
+} elseif ([System.IO.Path]::IsPathRooted($VideoStorageRoot)) {
+    [System.IO.Path]::GetFullPath($VideoStorageRoot)
+} else {
+    [System.IO.Path]::GetFullPath((Join-Path $productRoot $VideoStorageRoot))
+}
 
 function Write-Step([string]$Message) {
     Write-Host "[UAV V0.6] $Message" -ForegroundColor Cyan
@@ -184,6 +192,28 @@ if ($Stop) {
 }
 
 New-Item -ItemType Directory -Path $logRoot -Force | Out-Null
+New-Item -ItemType Directory -Path $resolvedVideoStorageRoot -Force | Out-Null
+
+# Before V0.6.3, uploads used the Spring Boot working directory. Copy legacy
+# files into stable .runtime storage while preserving the original files.
+$legacyVideoStorageRoot = Join-Path $springRoot "storage\videos"
+if (Test-Path -LiteralPath $legacyVideoStorageRoot -PathType Container) {
+    foreach ($legacyDirectory in @(Get-ChildItem -LiteralPath $legacyVideoStorageRoot -Directory)) {
+        if ($legacyDirectory.Name -notmatch '^\d+$') {
+            continue
+        }
+        $legacyVideo = Join-Path $legacyDirectory.FullName "original.mp4"
+        $targetDirectory = Join-Path $resolvedVideoStorageRoot $legacyDirectory.Name
+        $targetVideo = Join-Path $targetDirectory "original.mp4"
+        if ((Test-Path -LiteralPath $legacyVideo -PathType Leaf) -and
+            -not (Test-Path -LiteralPath $targetVideo -PathType Leaf)) {
+            New-Item -ItemType Directory -Path $targetDirectory -Force | Out-Null
+            Copy-Item -LiteralPath $legacyVideo -Destination $targetVideo
+            Write-Step "Migrated uploaded video $($legacyDirectory.Name) to stable storage."
+        }
+    }
+}
+
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $managedServices = [System.Collections.Generic.List[object]]::new()
 foreach ($existingService in @(Get-LiveManagedServices)) {
@@ -333,6 +363,7 @@ try {
         $env:DB_PORT = "$MySqlPort"
         $env:DB_USERNAME = $DbUsername
         $env:SMOKE_ANALYSIS_URL = "http://127.0.0.1:$FastApiPort"
+        $env:APP_STORAGE_VIDEO_ROOT = $resolvedVideoStorageRoot
         $env:MAP_PROVIDER = $MapProvider
         $env:MAP_STYLE = $MapStyle
         $env:MAPTILER_API_KEY = $MapTilerApiKey
@@ -377,7 +408,12 @@ try {
         Start-Process "http://127.0.0.1:$WebPort"
     }
 } catch {
-    Write-Error $_
+    $failureLocation = if ($_.InvocationInfo.PositionMessage) {
+        $_.InvocationInfo.PositionMessage.Trim()
+    } else {
+        "Location unavailable"
+    }
+    Write-Error "$($_.Exception.Message)`n$failureLocation`n$($_.ScriptStackTrace)"
     $newServices = @($managedServices)
     [array]::Reverse($newServices)
     foreach ($service in $newServices) {

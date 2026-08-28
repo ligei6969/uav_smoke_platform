@@ -28,10 +28,12 @@ a three-part platform:
   annotated video and keyframes.
 - `V0.6`: realtime UAV monitoring with simulated telemetry over SSE, a
   MapLibre provider abstraction, a default OpenStreetMap basemap, optional
-  MapTiler satellite imagery, smoke targets, mission waypoints, and a no-map
-  fallback. A Google Maps provider interface is reserved but not activated.
+  MapTiler satellite imagery, a fixed simulated fire point with live distance,
+  smoke targets, mission waypoints, and a no-map fallback. The monitor can play
+  every uploaded video beside the map as a selectable simulated live feed. A
+  Google Maps provider interface is reserved but not activated.
 
-The automated suites currently contain 16 Python tests and 30 Spring Boot
+The automated suites currently contain 16 Python tests and 31 Spring Boot
 tests. The earlier real-model `11.mp4` verification is recorded in
 [`python/V0.4_VERIFICATION.md`](python/V0.4_VERIFICATION.md), and the complete
 web-to-inference V0.5 verification is recorded in
@@ -48,6 +50,8 @@ Operator -> Spring Boot video web -> MySQL + local video storage
 Mock UAV telemetry -> Spring Boot snapshot + SSE stream
                    -> map provider abstraction
                    -> MapLibre/OSM or optional MapTiler satellite
+                   -> fixed fire point + live UAV-to-fire distance
+                   -> selectable uploaded-video live simulation
                    -> no-map coordinate fallback
 
 Mock telemetry + detection -> C++ target geolocation
@@ -119,7 +123,9 @@ artifact paths are not exposed to the operator-facing page.
   - Generates deterministic simulated UAV position, altitude, heading, speed,
     and gimbal telemetry.
   - Streams telemetry through Server-Sent Events and retains a bounded track.
-  - Displays UAV position, track, smoke targets, and recheck waypoints.
+  - Displays UAV position, track, a fixed fire point, live distance, smoke
+    targets, and recheck waypoints.
+  - Plays any uploaded video beside the map as a selectable simulated live feed.
   - Uses a replaceable map-provider interface with offline/no-key fallback.
 
 - FastAPI analysis task service:

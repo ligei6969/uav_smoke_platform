@@ -22,15 +22,28 @@ const elements = {
     speed: document.querySelector("#speed"),
     heading: document.querySelector("#heading"),
     gimbalPitch: document.querySelector("#gimbalPitch"),
-    lastUpdated: document.querySelector("#lastUpdated")
+    lastUpdated: document.querySelector("#lastUpdated"),
+    fireLatitude: document.querySelector("#fireLatitude"),
+    fireLongitude: document.querySelector("#fireLongitude"),
+    fireDistance: document.querySelector("#fireDistance"),
+    videoSelect: document.querySelector("#liveVideoSelect"),
+    videoPlayer: document.querySelector("#liveVideoPlayer"),
+    videoEmpty: document.querySelector("#liveVideoEmpty"),
+    streamStatus: document.querySelector("#streamStatus"),
+    currentVideoTitle: document.querySelector("#currentVideoTitle"),
+    currentVideoMeta: document.querySelector("#currentVideoMeta"),
+    goLiveButton: document.querySelector("#goLiveButton")
 };
 
 const state = {
     provider: null,
     latest: null,
     track: [],
+    firePoint: null,
     smokeTargets: [],
-    missionWaypoints: []
+    missionWaypoints: [],
+    videos: [],
+    currentVideo: null
 };
 
 function setConnectionStatus(text, kind) {
@@ -87,6 +100,7 @@ class NoMapProvider {
     }
 
     setTrack() {}
+    setFirePoint() {}
     setSmokeTargets() {}
     setMissionWaypoints() {}
     updateTelemetry() {}
@@ -213,6 +227,18 @@ class MapLibreProvider {
                 "circle-stroke-width": 3
             }
         });
+        this.map.addSource("fire-point", {type: "geojson", data: pointCollection([])});
+        this.map.addLayer({
+            id: "fire-point-marker",
+            type: "circle",
+            source: "fire-point",
+            paint: {
+                "circle-radius": 11,
+                "circle-color": "#ff7a00",
+                "circle-stroke-color": "#ffffff",
+                "circle-stroke-width": 4
+            }
+        });
         this.map.addSource("mission-waypoints", {type: "geojson", data: pointCollection([])});
         this.map.addLayer({
             id: "mission-waypoint-points",
@@ -229,6 +255,11 @@ class MapLibreProvider {
 
     setTrack(track) {
         this.map.getSource("uav-track")?.setData(lineFeature(track));
+    }
+
+    setFirePoint(firePoint) {
+        const points = firePoint ? [firePoint] : [];
+        this.map.getSource("fire-point")?.setData(pointCollection(points));
     }
 
     setSmokeTargets(targets) {
@@ -332,6 +363,7 @@ function applyMonitoringLayers() {
         return;
     }
     state.provider.setTrack(state.track);
+    state.provider.setFirePoint(state.firePoint);
     state.provider.setSmokeTargets(state.smokeTargets);
     state.provider.setMissionWaypoints(state.missionWaypoints);
     state.provider.updateTelemetry(state.latest);
@@ -403,7 +435,45 @@ function renderTelemetry(sample) {
     elements.lastUpdated.textContent = new Date(sample.timestamp).toLocaleTimeString("zh-CN", {
         hour12: false
     });
+    renderFirePointDistance(sample);
     state.provider?.updateTelemetry(sample);
+}
+
+function haversineDistanceMeters(first, second) {
+    if (!first || !second) {
+        return null;
+    }
+    const earthRadiusM = 6371008.8;
+    const toRadians = degrees => degrees * Math.PI / 180;
+    const latitudeDelta = toRadians(second.latitude - first.latitude);
+    const longitudeDelta = toRadians(second.longitude - first.longitude);
+    const firstLatitude = toRadians(first.latitude);
+    const secondLatitude = toRadians(second.latitude);
+    const haversine = Math.sin(latitudeDelta / 2) ** 2
+        + Math.cos(firstLatitude) * Math.cos(secondLatitude)
+        * Math.sin(longitudeDelta / 2) ** 2;
+    return 2 * earthRadiusM * Math.asin(Math.sqrt(haversine));
+}
+
+function renderFirePoint(firePoint) {
+    if (!firePoint) {
+        elements.fireLatitude.textContent = "--";
+        elements.fireLongitude.textContent = "--";
+        elements.fireDistance.textContent = "--";
+        return;
+    }
+    elements.fireLatitude.textContent = firePoint.latitude.toFixed(6);
+    elements.fireLongitude.textContent = firePoint.longitude.toFixed(6);
+    renderFirePointDistance(state.latest);
+}
+
+function renderFirePointDistance(sample) {
+    const distance = haversineDistanceMeters(sample, state.firePoint);
+    elements.fireDistance.textContent = distance == null
+        ? "--"
+        : distance >= 1000
+            ? `${(distance / 1000).toFixed(2)} km`
+            : `${distance.toFixed(1)} m`;
 }
 
 function renderTargets(targets) {
@@ -421,7 +491,7 @@ function renderTargets(targets) {
         const confidence = document.createElement("span");
         confidence.textContent = target.confidence == null
             ? ""
-            : `模拟识别分数 ${Math.round(target.confidence * 100)} / 100`;
+            : `识别准确率 ${Math.round(target.confidence * 100)}%`;
         item.append(title, coordinate, confidence);
         return item;
     }));
@@ -438,6 +508,103 @@ function consumeSample(sample) {
     elements.trackCount.textContent = state.track.length.toString();
     state.provider?.setTrack(state.track);
     renderTelemetry(sample);
+}
+
+function setStreamStatus(text, kind) {
+    elements.streamStatus.textContent = text;
+    elements.streamStatus.className = `badge text-bg-${kind}`;
+}
+
+function showVideoEmpty(title, message) {
+    const heading = document.createElement("strong");
+    heading.textContent = title;
+    const detail = document.createElement("span");
+    detail.textContent = message;
+    elements.videoEmpty.replaceChildren(heading, detail);
+    elements.videoEmpty.classList.remove("d-none");
+}
+
+function formatFileSize(bytes) {
+    if (!Number.isFinite(bytes) || bytes < 1) {
+        return "未知大小";
+    }
+    const units = ["B", "KB", "MB", "GB"];
+    const unitIndex = Math.min(
+        Math.floor(Math.log(bytes) / Math.log(1024)),
+        units.length - 1
+    );
+    return `${(bytes / 1024 ** unitIndex).toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+async function loadVideoSources() {
+    try {
+        const response = await fetch("/api/videos");
+        if (!response.ok) {
+            throw new Error("视频列表接口返回异常");
+        }
+        const envelope = await response.json();
+        if (!envelope.success || !Array.isArray(envelope.data)) {
+            throw new Error(envelope.message || "视频列表数据格式错误");
+        }
+        state.videos = (envelope.data ?? []).filter(video => video.status === "NORMAL");
+        if (!state.videos.length) {
+            setStreamStatus("暂无视频", "secondary");
+            showVideoEmpty("没有可用视频", "请先在视频库上传 MP4");
+            elements.videoSelect.replaceChildren(new Option("暂无上传视频", ""));
+            return;
+        }
+
+        const options = state.videos.map((video, index) => new Option(
+            `视频源 ${index + 1} · ${video.title}`,
+            video.id
+        ));
+        elements.videoSelect.replaceChildren(...options);
+        elements.videoSelect.disabled = false;
+        selectVideoSource(state.videos[0].id);
+    } catch (error) {
+        setStreamStatus("读取失败", "danger");
+        showVideoEmpty("视频源加载失败", error.message);
+    }
+}
+
+function selectVideoSource(videoId) {
+    const video = state.videos.find(item => String(item.id) === String(videoId));
+    if (!video) {
+        return;
+    }
+    state.currentVideo = video;
+    elements.currentVideoTitle.textContent = video.title;
+    elements.currentVideoMeta.textContent = `${video.originalFilename} · ${formatFileSize(video.fileSize)} · 循环模拟实时传输`;
+    elements.videoEmpty.classList.add("d-none");
+    elements.goLiveButton.disabled = true;
+    setStreamStatus("正在连接", "warning");
+    elements.videoPlayer.src = `/media/videos/${encodeURIComponent(video.id)}`;
+    elements.videoPlayer.load();
+}
+
+function simulatedLiveTime() {
+    const duration = elements.videoPlayer.duration;
+    if (!Number.isFinite(duration) || duration <= 0) {
+        return 0;
+    }
+    return (Date.now() / 1000) % duration;
+}
+
+async function goToSimulatedLiveEdge() {
+    if (!state.currentVideo) {
+        return;
+    }
+    const liveTime = simulatedLiveTime();
+    if (Number.isFinite(liveTime)) {
+        elements.videoPlayer.currentTime = liveTime;
+    }
+    elements.goLiveButton.disabled = false;
+    try {
+        await elements.videoPlayer.play();
+        setStreamStatus("模拟直播中", "danger");
+    } catch (_error) {
+        setStreamStatus("点击播放", "primary");
+    }
 }
 
 async function initialize() {
@@ -457,6 +624,7 @@ async function initialize() {
             throw new Error("监控接口数据为空");
         }
         state.track = snapshot.track ?? [];
+        state.firePoint = snapshot.firePoint ?? null;
         state.smokeTargets = snapshot.smokeTargets ?? [];
         state.missionWaypoints = snapshot.missionWaypoints ?? [];
         state.latest = snapshot.latest;
@@ -464,6 +632,7 @@ async function initialize() {
         elements.trackCount.textContent = state.track.length.toString();
         elements.smokeCount.textContent = state.smokeTargets.length.toString();
         elements.waypointCount.textContent = state.missionWaypoints.length.toString();
+        renderFirePoint(state.firePoint);
         renderTargets(state.smokeTargets);
         elements.mapModeSelect.value = selectedModeFor(config);
         await activateMapProvider(config);
@@ -488,4 +657,19 @@ elements.mapModeSelect.addEventListener("change", switchMapMode);
 elements.zoomIn.addEventListener("click", () => state.provider?.zoomIn());
 elements.zoomOut.addEventListener("click", () => state.provider?.zoomOut());
 elements.recenter.addEventListener("click", () => state.provider?.recenter());
+elements.videoSelect.addEventListener("change", event => selectVideoSource(event.target.value));
+elements.goLiveButton.addEventListener("click", goToSimulatedLiveEdge);
+elements.videoPlayer.addEventListener("loadedmetadata", goToSimulatedLiveEdge);
+elements.videoPlayer.addEventListener("play", () => setStreamStatus("模拟直播中", "danger"));
+elements.videoPlayer.addEventListener("pause", () => {
+    if (!elements.videoPlayer.ended) {
+        setStreamStatus("已暂停", "secondary");
+    }
+});
+elements.videoPlayer.addEventListener("waiting", () => setStreamStatus("缓冲中", "warning"));
+elements.videoPlayer.addEventListener("error", () => {
+    setStreamStatus("播放失败", "danger");
+    showVideoEmpty("视频无法播放", "请检查文件编码或媒体接口");
+});
+loadVideoSources();
 initialize();

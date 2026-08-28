@@ -149,6 +149,13 @@ body {
     gap: 1rem;
 }
 
+.monitor-stage {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(21rem, .8fr);
+    gap: 1rem;
+    min-width: 0;
+}
+
 .map-card,
 .map-shell,
 .live-map {
@@ -157,6 +164,86 @@ body {
 
 .map-card {
     overflow: hidden;
+}
+
+.live-stream-card {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 43rem;
+    overflow: hidden;
+}
+
+.live-stream-header,
+.live-stream-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem;
+}
+
+.live-stream-source {
+    padding: 0 1rem 1rem;
+}
+
+.live-video-shell {
+    position: relative;
+    display: grid;
+    flex: 1;
+    min-height: 20rem;
+    place-items: center;
+    overflow: hidden;
+    background: #071119;
+}
+
+.live-video-player,
+.live-video-empty {
+    grid-area: 1 / 1;
+}
+
+.live-video-player {
+    display: block;
+    width: 100%;
+    max-height: 31rem;
+    background: #071119;
+    object-fit: contain;
+}
+
+.live-video-empty {
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .35rem;
+    padding: 2rem;
+    color: #fff;
+    text-align: center;
+}
+
+.live-video-empty span {
+    color: #9fb0bd;
+    font-size: .8rem;
+}
+
+.live-stream-footer {
+    align-items: flex-start;
+    border-top: 1px solid #edf1f4;
+}
+
+.live-stream-footer strong,
+.live-stream-footer span {
+    display: block;
+}
+
+.live-stream-footer strong {
+    overflow-wrap: anywhere;
+}
+
+.live-stream-footer span {
+    margin-top: .15rem;
+    color: #657786;
+    font-size: .76rem;
 }
 
 .map-shell {
@@ -274,6 +361,7 @@ body {
 }
 
 .legend-uav { background: #2f80ed; }
+.legend-fire { background: #ff7a00; }
 .legend-smoke { background: #dc3545; }
 .legend-waypoint { background: #f2c94c; }
 
@@ -313,6 +401,49 @@ body {
 .telemetry-grid span,
 .telemetry-grid strong {
     display: block;
+}
+
+.fixed-point-panel {
+    border: 1px solid #f2d38a;
+    border-radius: .5rem;
+    padding: .75rem;
+    background: #fff9e8;
+}
+
+.fixed-point-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .55rem;
+}
+
+.fixed-point-grid > div {
+    min-width: 0;
+}
+
+.fixed-point-grid span,
+.fixed-point-grid strong {
+    display: block;
+}
+
+.fixed-point-grid span {
+    color: #806d43;
+    font-size: .72rem;
+}
+
+.fixed-point-grid strong {
+    color: #4f3a0b;
+    font-size: .86rem;
+    overflow-wrap: anywhere;
+}
+
+.fixed-point-distance {
+    grid-column: 1 / -1;
+    border-top: 1px solid #f2d38a;
+    padding-top: .45rem;
+}
+
+.fixed-point-distance strong {
+    font-size: 1.05rem;
 }
 
 .telemetry-grid span {
@@ -393,12 +524,18 @@ body {
     text-align: right;
 }
 
+@media (max-width: 1199.98px) {
+    .monitor-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
 @media (max-width: 991.98px) {
     .analysis-stats {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .monitor-layout {
+    .monitor-stage {
         grid-template-columns: minmax(0, 1fr);
     }
 
@@ -406,6 +543,10 @@ body {
     .map-shell,
     .live-map {
         min-height: 32rem;
+    }
+
+    .live-stream-card {
+        min-height: auto;
     }
 }
 

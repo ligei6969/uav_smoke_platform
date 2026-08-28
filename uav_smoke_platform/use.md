@@ -1,4 +1,4 @@
-# UAV 烟雾分析平台 V0.6 使用与验证指南
+# UAV 烟雾分析平台 V0.6.3 使用与验证指南
 
 本文说明如何在 Windows 环境中一键启动 UAV 烟雾分析平台，使用实时监控地图，并完成 V0.6 的功能验收。V0.5 的视频上传与烟雾分析功能仍然保留。
 
@@ -76,10 +76,19 @@ powershell -ExecutionPolicy Bypass -File .\start.ps1 -NoBrowser
 -DbPassword         MySQL 密码，默认读取 DB_PASSWORD
 -PythonExecutable   Python 路径，默认自动查找 psdk 环境
 -MavenExecutable    Maven 路径，默认自动查找
+-VideoStorageRoot   上传视频存储目录，默认使用 .runtime\storage\videos
 -MapProvider        地图提供者：maplibre、google 或 none，默认 maplibre
 -MapStyle           地图样式：osm 或 satellite，默认 osm
 -MapTilerApiKey     MapTiler Key，仅卫星地图需要
 ```
+
+一键脚本会统一使用以下稳定目录保存上传视频：
+
+```text
+J:\uav-smoke-platform\uav_smoke_platform\.runtime\storage\videos
+```
+
+第一次使用 V0.6.3 启动时，脚本会把旧版 Spring Boot 工作目录中的上传视频复制到该目录；原文件会保留。这可以避免升级或从不同目录启动后出现“数据库有视频记录，但播放接口返回 404”。
 
 ## 3. 实时地图使用方法
 
@@ -97,8 +106,10 @@ powershell -ExecutionPolicy Bypass -File .\start.ps1
 - 蓝色无人机标记及实时航向
 - 蓝色历史飞行轨迹
 - 红色烟雾目标
+- 橙色固定模拟着火点（经纬度不会随时间变化）
 - 黄色复查航点和虚线任务路线
 - 纬度、经度、高度、速度、航向和云台俯仰角
+- 无人机到固定着火点的实时地面距离（不计飞行高度）
 - SSE 实时连接状态
 - “地图显示”下拉框，可在 OSM、卫星地图、仅坐标和 Google 预留模式之间切换
 - 地图右上角的 `+`、`−` 和“定位”按钮，用于缩放和重新跟随无人机
@@ -107,7 +118,7 @@ powershell -ExecutionPolicy Bypass -File .\start.ps1
 
 默认启用“跟随无人机”。手动滚轮缩放、双击缩放、触控缩放或拖动地图时，页面会自动关闭跟随，避免每秒一次的遥测定位动画打断用户操作。点击地图右上角“定位”可以重新开启跟随并回到无人机位置。
 
-目标列表中的“模拟识别分数”范围为 0～100。它只表示演示检测器倾向于把该目标识别成烟雾的程度，当前不是 YOLO 实际推理结果，也不表示火情严重程度。
+目标列表中的“识别准确率”以百分比显示。它表示演示检测器倾向于把该目标识别成烟雾的程度；当前是模拟数据，不是 YOLO 实际推理结果，也不表示火情严重程度。
 
 默认底图需要访问 MapLibre 脚本 CDN 和 OpenStreetMap 在线瓦片。它适合本机开发和功能演示；如果外网不可用，页面会自动进入无地图模式，坐标和遥测数据仍会继续更新。
 
@@ -157,6 +168,23 @@ curl.exe -N http://127.0.0.1:8080/api/telemetry/stream
 ```powershell
 curl.exe http://127.0.0.1:8080/api/map/config
 ```
+
+### 3.5 地图与上传视频同屏模拟实时传输
+
+实时监控页会同时显示地图和“模拟实时视频”播放器。播放器会自动读取视频库中所有状态正常的上传视频；当前已有三条视频时，下拉框会显示“视频源 1、视频源 2、视频源 3”，每一条都可以单独切换和播放。
+
+使用步骤：
+
+1. 先在“上传视频”页面上传需要演示的 MP4；已经上传的视频不需要重复上传。
+2. 打开 <http://127.0.0.1:8080/monitor>。
+3. 在“选择上传的视频源”下拉框中选择任意一条视频。
+4. 页面会从一个随系统时间推进的位置开始静音播放，并循环播放，以模拟无人机实时回传画面。
+5. 可以暂停或拖动进度条查看历史画面；点击“回到实时”会重新定位到当前模拟直播位置并继续播放。
+6. 同时观察地图上的无人机轨迹、固定着火点和“无人机距火点（地面）”，确认视频播放期间遥测仍持续更新。
+
+浏览器通常只允许网页自动静音播放，所以播放器默认静音；需要声音时可在播放器控制条中手动取消静音。本功能使用已上传的本地视频模拟实时视频流，不代表当前已经接入无人机 RTSP/RTMP/WebRTC 图传。后续接入真实图传时可以保留同一播放器区域并替换视频源适配器。
+
+固定模拟着火点由遥测快照接口的 `firePoint` 字段提供。它的经纬度始终不变；无人机经纬度继续移动，页面使用两组坐标计算并显示实时距离。
 
 以下第 4～6 节是单独启动各服务的备用方法，主要用于故障排查。
 
@@ -215,6 +243,7 @@ $env:DB_HOST = "127.0.0.1"
 $env:DB_PORT = "3307"
 $env:DB_USERNAME = "root"
 $env:SMOKE_ANALYSIS_URL = "http://127.0.0.1:8000"
+$env:APP_STORAGE_VIDEO_ROOT = "J:\uav-smoke-platform\uav_smoke_platform\.runtime\storage\videos"
 
 $maven = "C:\Users\jb\.m2\wrapper\dists\apache-maven-3.9.16-bin\5grr65jo27hi51sujmtcldfovl\apache-maven-3.9.16\bin\mvn.cmd"
 
@@ -348,7 +377,7 @@ $maven = "C:\Users\jb\.m2\wrapper\dists\apache-maven-3.9.16-bin\5grr65jo27hi51su
 & $maven test
 ```
 
-通过标准：30 个测试全部通过并显示 `BUILD SUCCESS`。
+通过标准：31 个测试全部通过并显示 `BUILD SUCCESS`。
 
 ### 11.3 C++ 测试
 
@@ -388,13 +417,18 @@ node --check `
 - [ ] 实时监控页显示“实时连接”和“模拟数据”
 - [ ] 无人机位置、轨迹点数量及遥测数值持续变化
 - [ ] 地图显示 2 个疑似烟雾目标、4 个复查航点和任务路线
+- [ ] 地图显示橙色固定着火点，刷新和持续运行后其经纬度不变
+- [ ] “无人机距火点（地面）”随无人机移动持续变化
 - [ ] 关闭“跟随无人机”后可以自由拖动地图
 - [ ] 页面内可以切换 OSM、卫星地图、仅坐标和 Google 预留模式
 - [ ] 不配置 MapTiler Key 并选择卫星图时自动回退 OSM
 - [ ] 使用 `-MapProvider none` 时坐标与遥测仍正常更新
 - [ ] 使用 `-MapProvider google` 时显示预留接口提示且页面不报错
 - [ ] SSE 接口持续输出递增的 `sequence`
-- [ ] Spring Boot 30 个测试和两个 JavaScript 语法检查通过
+- [ ] 地图和模拟实时视频在同一个监控页面显示
+- [ ] 视频源下拉框能列出并播放全部三条已上传视频
+- [ ] 暂停或拖动视频后，“回到实时”可以恢复模拟直播位置
+- [ ] Spring Boot 31 个测试和两个 JavaScript 语法检查通过
 
 V0.5 回归检查：
 

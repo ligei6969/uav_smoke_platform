@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>无人机实时监控</title>
     <link rel="stylesheet" href="/webjars/bootstrap/5.3.8/css/bootstrap.min.css">
-    <link rel="stylesheet" href="/css/app.css?v=0.6.2">
+    <link rel="stylesheet" href="/css/app.css?v=0.6.3">
 </head>
 <body>
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
@@ -22,7 +22,7 @@
 <main class="container-fluid px-lg-4 py-4">
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
         <div>
-            <p class="text-uppercase text-secondary small mb-1">V0.6 · Realtime Telemetry</p>
+            <p class="text-uppercase text-secondary small mb-1">V0.6.3 · Realtime Telemetry</p>
             <h1 class="h3 mb-0">无人机实时监控</h1>
         </div>
         <div class="d-flex align-items-center gap-3">
@@ -38,31 +38,75 @@
     <div id="mapWarning" class="alert alert-warning d-none" role="alert"></div>
 
     <div class="monitor-layout">
-        <section class="card map-card" aria-label="无人机地图">
-            <div class="map-shell">
-                <div id="liveMap" class="live-map"></div>
-                <div id="mapFallback" class="map-fallback d-none">
-                    <div class="map-fallback-grid"></div>
-                    <div class="map-fallback-content">
-                        <span class="map-fallback-icon" aria-hidden="true">⌖</span>
-                        <strong>地图暂不可用</strong>
-                        <span id="mapFallbackReason">遥测数据仍会实时更新</span>
+        <div class="monitor-stage">
+            <section class="card map-card" aria-label="无人机地图">
+                <div class="map-shell">
+                    <div id="liveMap" class="live-map"></div>
+                    <div id="mapFallback" class="map-fallback d-none">
+                        <div class="map-fallback-grid"></div>
+                        <div class="map-fallback-content">
+                            <span class="map-fallback-icon" aria-hidden="true">⌖</span>
+                            <strong>地图暂不可用</strong>
+                            <span id="mapFallbackReason">遥测数据仍会实时更新</span>
+                        </div>
+                    </div>
+                    <div id="mapZoomControls" class="map-zoom-controls" aria-label="地图缩放控件">
+                        <button id="mapZoomIn" type="button" title="放大地图" aria-label="放大地图">+</button>
+                        <button id="mapZoomOut" type="button" title="缩小地图" aria-label="缩小地图">−</button>
+                        <button id="mapRecenter" class="map-recenter" type="button" title="定位并跟随无人机">
+                            定位
+                        </button>
+                    </div>
+                    <div class="map-legend" aria-label="地图图例">
+                        <span><i class="legend-dot legend-uav"></i>无人机</span>
+                        <span><i class="legend-dot legend-fire"></i>固定着火点</span>
+                        <span><i class="legend-dot legend-smoke"></i>疑似烟雾目标</span>
+                        <span><i class="legend-dot legend-waypoint"></i>任务航点</span>
                     </div>
                 </div>
-                <div id="mapZoomControls" class="map-zoom-controls" aria-label="地图缩放控件">
-                    <button id="mapZoomIn" type="button" title="放大地图" aria-label="放大地图">+</button>
-                    <button id="mapZoomOut" type="button" title="缩小地图" aria-label="缩小地图">−</button>
-                    <button id="mapRecenter" class="map-recenter" type="button" title="定位并跟随无人机">
-                        定位
+            </section>
+
+            <section class="card live-stream-card" aria-labelledby="live-stream-title">
+                <div class="live-stream-header">
+                    <div>
+                        <p class="text-uppercase text-secondary small mb-1">Uploaded Video · Live Simulation</p>
+                        <h2 id="live-stream-title" class="h6 mb-0">模拟实时视频</h2>
+                    </div>
+                    <span id="streamStatus" class="badge text-bg-secondary">正在读取视频</span>
+                </div>
+                <div class="live-stream-source">
+                    <label for="liveVideoSelect" class="form-label small text-secondary mb-1">选择上传的视频源</label>
+                    <select id="liveVideoSelect" class="form-select form-select-sm" disabled>
+                        <option>正在加载视频列表…</option>
+                    </select>
+                </div>
+                <div class="live-video-shell">
+                    <video id="liveVideoPlayer"
+                           class="live-video-player"
+                           controls
+                           muted
+                           autoplay
+                           loop
+                           playsinline
+                           preload="metadata">
+                        当前浏览器不支持 HTML5 视频播放。
+                    </video>
+                    <div id="liveVideoEmpty" class="live-video-empty">
+                        <strong>等待视频源</strong>
+                        <span>上传的 MP4 会自动显示在这里</span>
+                    </div>
+                </div>
+                <div class="live-stream-footer">
+                    <div>
+                        <strong id="currentVideoTitle">尚未选择视频</strong>
+                        <span id="currentVideoMeta">使用本地上传视频模拟实时传输</span>
+                    </div>
+                    <button id="goLiveButton" class="btn btn-sm btn-outline-danger" type="button" disabled>
+                        回到实时
                     </button>
                 </div>
-                <div class="map-legend" aria-label="地图图例">
-                    <span><i class="legend-dot legend-uav"></i>无人机</span>
-                    <span><i class="legend-dot legend-smoke"></i>疑似烟雾目标</span>
-                    <span><i class="legend-dot legend-waypoint"></i>任务航点</span>
-                </div>
-            </div>
-        </section>
+            </section>
+        </div>
 
         <aside class="monitor-sidebar">
             <section class="card p-3 mb-3">
@@ -71,12 +115,25 @@
                     <span id="dataSourceBadge" class="badge text-bg-info">模拟数据</span>
                 </div>
                 <div class="telemetry-grid">
-                    <div><span>纬度</span><strong id="latitude">--</strong></div>
-                    <div><span>经度</span><strong id="longitude">--</strong></div>
+                    <div><span>无人机纬度</span><strong id="latitude">--</strong></div>
+                    <div><span>无人机经度</span><strong id="longitude">--</strong></div>
                     <div><span>高度</span><strong id="altitude">--</strong></div>
                     <div><span>速度</span><strong id="speed">--</strong></div>
                     <div><span>航向</span><strong id="heading">--</strong></div>
                     <div><span>云台俯仰</span><strong id="gimbalPitch">--</strong></div>
+                </div>
+                <div class="fixed-point-panel mt-3">
+                    <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                        <strong>固定模拟着火点</strong>
+                        <span class="badge text-bg-warning">坐标不移动</span>
+                    </div>
+                    <div class="fixed-point-grid">
+                        <div><span>火点纬度</span><strong id="fireLatitude">--</strong></div>
+                        <div><span>火点经度</span><strong id="fireLongitude">--</strong></div>
+                        <div class="fixed-point-distance">
+                            <span>无人机距火点（地面）</span><strong id="fireDistance">--</strong>
+                        </div>
+                    </div>
                 </div>
                 <div class="small text-secondary mt-3">
                     最后更新：<time id="lastUpdated">--</time>
@@ -107,7 +164,7 @@
             <section class="card p-3">
                 <h2 class="h6 mb-2">疑似烟雾目标列表</h2>
                 <p class="target-score-help">
-                    “模拟识别分数”表示演示检测器有多倾向于把该目标识别为烟雾。
+                    “识别准确率”表示演示检测器有多倾向于把该目标识别为烟雾。
                     当前数值是模拟数据，不是实际模型推理结果，也不代表火情严重程度。
                 </p>
                 <div id="smokeTargetList" class="target-list text-secondary small">等待数据</div>
@@ -116,6 +173,6 @@
     </div>
 </main>
 
-<script type="module" src="/js/live-monitor.js?v=0.6.2"></script>
+<script type="module" src="/js/live-monitor.js?v=0.6.3.1"></script>
 </body>
 </html>
