@@ -12,6 +12,7 @@
     <div class="container">
         <a class="navbar-brand" href="/">UAV VIDEO</a>
         <div class="navbar-nav ms-auto">
+            <a class="nav-link" href="/monitor">实时监控</a>
             <a class="nav-link" href="/videos">视频库</a>
             <a class="nav-link" href="/videos/upload">上传视频</a>
         </div>
@@ -21,11 +22,11 @@
     <section class="hero p-5 mb-4">
         <div class="row align-items-center g-4">
             <div class="col-lg-8">
-                <p class="text-uppercase small mb-2">V0.5 · Smoke Analysis</p>
+                <p class="text-uppercase small mb-2">V0.6 · Realtime Monitoring</p>
                 <h1 class="display-5 fw-bold">无人机烟雾分析平台</h1>
-                <p class="lead mb-4">管理巡检视频并查看逐帧烟雾检测结果。</p>
-                <a class="btn btn-light btn-lg me-2" href="/videos">浏览视频</a>
-                <a class="btn btn-outline-light btn-lg" href="/videos/upload">上传 MP4</a>
+                <p class="lead mb-4">实时查看无人机位置、飞行轨迹、烟雾目标和复查航点。</p>
+                <a class="btn btn-light btn-lg me-2" href="/monitor">进入实时监控</a>
+                <a class="btn btn-outline-light btn-lg" href="/videos">浏览视频</a>
             </div>
             <div class="col-lg-4">
                 <div class="bg-white bg-opacity-10 rounded-4 p-4 text-center">
@@ -44,14 +45,14 @@
         </div>
         <div class="col-md-4">
             <div class="card h-100 p-4">
-                <h2 class="h5">HTML5 在线播放</h2>
-                <p class="text-secondary mb-0">通过视频 ID 受控访问 MP4 媒体内容。</p>
+                <h2 class="h5">实时位置与轨迹</h2>
+                <p class="text-secondary mb-0">通过 SSE 接收无人机遥测，并在地图上持续更新位置和航迹。</p>
             </div>
         </div>
         <div class="col-md-4">
             <div class="card h-100 p-4">
-                <h2 class="h5">烟雾检测结果</h2>
-                <p class="text-secondary mb-0">查看检测摘要、标注视频与关键帧。</p>
+                <h2 class="h5">目标与复查任务</h2>
+                <p class="text-secondary mb-0">同时查看烟雾目标、置信度和模拟复查航点。</p>
             </div>
         </div>
     </div>

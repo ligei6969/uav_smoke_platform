@@ -8,7 +8,10 @@ param(
     [string]$DbUsername = "root",
     [string]$DbPassword = $env:DB_PASSWORD,
     [string]$PythonExecutable = $env:SMOKE_PYTHON,
-    [string]$MavenExecutable = $env:MAVEN_CMD
+    [string]$MavenExecutable = $env:MAVEN_CMD,
+    [string]$MapProvider = $(if ($env:MAP_PROVIDER) { $env:MAP_PROVIDER } else { "maplibre" }),
+    [string]$MapStyle = $(if ($env:MAP_STYLE) { $env:MAP_STYLE } else { "osm" }),
+    [string]$MapTilerApiKey = $env:MAPTILER_API_KEY
 )
 
 $ErrorActionPreference = "Stop"
@@ -17,11 +20,11 @@ $productRoot = (Resolve-Path -LiteralPath $PSScriptRoot).Path
 $workspaceRoot = (Resolve-Path -LiteralPath (Join-Path $productRoot "..")).Path
 $runtimeRoot = Join-Path $workspaceRoot ".runtime"
 $logRoot = Join-Path $runtimeRoot "logs"
-$stateFile = Join-Path $runtimeRoot "uav-v0.5-services.json"
+$stateFile = Join-Path $runtimeRoot "uav-v0.6-services.json"
 $springRoot = Join-Path $productRoot "web\springboot\uav-video-platform"
 
 function Write-Step([string]$Message) {
-    Write-Host "[UAV V0.5] $Message" -ForegroundColor Cyan
+    Write-Host "[UAV V0.6] $Message" -ForegroundColor Cyan
 }
 
 function Resolve-Executable {
@@ -330,6 +333,9 @@ try {
         $env:DB_PORT = "$MySqlPort"
         $env:DB_USERNAME = $DbUsername
         $env:SMOKE_ANALYSIS_URL = "http://127.0.0.1:$FastApiPort"
+        $env:MAP_PROVIDER = $MapProvider
+        $env:MAP_STYLE = $MapStyle
+        $env:MAPTILER_API_KEY = $MapTilerApiKey
         if ($DbPassword) {
             $env:DB_PASSWORD = $DbPassword
         }
@@ -361,7 +367,9 @@ try {
     Write-Host ""
     Write-Host "Platform started successfully:" -ForegroundColor Green
     Write-Host "  Website:  http://127.0.0.1:$WebPort"
+    Write-Host "  Monitor:  http://127.0.0.1:$WebPort/monitor"
     Write-Host "  FastAPI:  http://127.0.0.1:$FastApiPort/docs"
+    Write-Host "  Map:      $MapProvider / $MapStyle"
     Write-Host "  Logs:     $logRoot"
     Write-Host "  Stop:     powershell -ExecutionPolicy Bypass -File `"$productRoot\start.ps1`" -Stop"
 

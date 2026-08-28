@@ -10,7 +10,7 @@ The current `uav_smoke_platform` version does not claim to reconnect the real UA
 
 ## 2. Current Version
 
-Current version: `V0.5`
+Current version: `V0.6`
 
 The project has progressed from an offline mission-planning proof of concept to
 a three-part platform:
@@ -26,8 +26,12 @@ a three-part platform:
 - `V0.5`: Spring Boot and FastAPI integration, including persisted analysis
   attempts, browser-side status polling, result review, retry, and proxied
   annotated video and keyframes.
+- `V0.6`: realtime UAV monitoring with simulated telemetry over SSE, a
+  MapLibre provider abstraction, a default OpenStreetMap basemap, optional
+  MapTiler satellite imagery, smoke targets, mission waypoints, and a no-map
+  fallback. A Google Maps provider interface is reserved but not activated.
 
-The automated suites currently contain 15 Python tests and 21 Spring Boot
+The automated suites currently contain 16 Python tests and 30 Spring Boot
 tests. The earlier real-model `11.mp4` verification is recorded in
 [`python/V0.4_VERIFICATION.md`](python/V0.4_VERIFICATION.md), and the complete
 web-to-inference V0.5 verification is recorded in
@@ -40,6 +44,11 @@ Operator -> Spring Boot video web -> MySQL + local video storage
          -> start/status/retry API -> persisted analysis attempt
          -> FastAPI analysis task -> YOLO video inference
          -> Spring Boot media proxy -> annotated video + summary + keyframes
+
+Mock UAV telemetry -> Spring Boot snapshot + SSE stream
+                   -> map provider abstraction
+                   -> MapLibre/OSM or optional MapTiler satellite
+                   -> no-map coordinate fallback
 
 Mock telemetry + detection -> C++ target geolocation
                            -> recheck mission planning
@@ -105,6 +114,13 @@ artifact paths are not exposed to the operator-facing page.
   - Stores video metadata in MySQL 8.4.
   - Supports upload, list, detail, edit, logical delete, and local file cleanup.
   - Serves MP4 content with HTTP Range support for browser playback.
+
+- Realtime monitoring web application:
+  - Generates deterministic simulated UAV position, altitude, heading, speed,
+    and gimbal telemetry.
+  - Streams telemetry through Server-Sent Events and retains a bounded track.
+  - Displays UAV position, track, smoke targets, and recheck waypoints.
+  - Uses a replaceable map-provider interface with offline/no-key fallback.
 
 - FastAPI analysis task service:
   - `POST /api/v1/analysis-tasks` creates an asynchronous analysis task.
@@ -319,7 +335,7 @@ Output image: C:\Users\jb\Desktop\Payload-SDK-3.10.0-task\uav_smoke_platform\res
 
 ## 11. Current Limitations
 
-V0.5 is still a hardware-free validation platform. It intentionally does not
+V0.6 is still a hardware-free validation platform. It intentionally does not
 claim to reconnect the full production UAV stack.
 
 Current limitations:
@@ -330,6 +346,10 @@ Current limitations:
 - Video bytes are transferred from Spring Boot to FastAPI for each analysis
   attempt, so both services temporarily keep a copy of the source video.
 - This refactored version does not connect to real DJI PSDK hardware.
+- Realtime web telemetry is simulated; it is not yet sourced from a flight
+  controller or DJI adapter.
+- The default OSM and optional satellite basemaps require internet access. The
+  page falls back to a coordinate panel when map resources are unavailable.
 - It does not reacquire a real UAV video stream.
 - The C++ geolocation workflow still receives a mock `DetectionResult`; real
   YOLO detections are not yet converted into geolocated smoke events.
@@ -373,7 +393,22 @@ V0.5 acceptance criteria:
 - Existing C++, Python, and Spring Boot automated tests remain passing.
 - Offline development remains possible without DJI hardware.
 
-## 13. Next Milestone: V0.6 Geolocation Integration
+## 13. V0.6 Realtime Monitoring
+
+V0.6 adds a browser monitoring workflow without changing the V0.5 analysis
+pipeline:
+
+```text
+Simulated UAV -> snapshot API + SSE -> live telemetry panel
+                               -> map provider -> UAV + track + targets + route
+```
+
+The default provider is MapLibre with OpenStreetMap and requires no API key.
+MapTiler satellite imagery is optional. Selecting satellite mode without a key,
+or losing access to online map resources, keeps the telemetry page operational
+through an explicit fallback. The Google provider is a reserved adapter only.
+
+## 14. Next Milestone: V0.7 Geolocation Integration
 
 The next direction is to connect real detection frames with synchronized
 telemetry for target geolocation and recheck mission generation. Real DJI PSDK

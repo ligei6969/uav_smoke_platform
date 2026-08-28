@@ -1,11 +1,14 @@
 package com.uav.platform;
 
 import com.uav.platform.config.AnalysisProperties;
+import com.uav.platform.config.MapProperties;
 import com.uav.platform.config.StorageProperties;
+import com.uav.platform.config.TelemetryProperties;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * Spring Boot 应用启动入口。
@@ -15,7 +18,13 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
  */
 @SpringBootApplication
 @MapperScan("com.uav.platform.mapper") // 让 MyBatis 为 mapper 接口生成数据库访问实现
-@EnableConfigurationProperties({StorageProperties.class, AnalysisProperties.class})
+@EnableScheduling
+@EnableConfigurationProperties({
+        StorageProperties.class,
+        AnalysisProperties.class,
+        MapProperties.class,
+        TelemetryProperties.class
+})
 public class UavVideoPlatformApplication {
 
     public static void main(String[] args) {

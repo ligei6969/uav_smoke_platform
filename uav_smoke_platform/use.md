@@ -1,6 +1,6 @@
-# UAV 烟雾分析平台 V0.5 使用与验证指南
+# UAV 烟雾分析平台 V0.6 使用与验证指南
 
-本文说明如何在 Windows 环境中启动 UAV 烟雾分析平台，并完成 V0.5 的功能验收。
+本文说明如何在 Windows 环境中一键启动 UAV 烟雾分析平台，使用实时监控地图，并完成 V0.6 的功能验收。V0.5 的视频上传与烟雾分析功能仍然保留。
 
 ## 1. 环境与目录
 
@@ -21,6 +21,8 @@ J:\uav-smoke-platform\uav_smoke_platform\uav_smoke_platform
 
 推荐直接使用项目根目录的 `start.ps1` 一键启动。脚本会自动启动 MySQL、FastAPI 和 Spring Boot，等待服务就绪，并打开网站。
 
+V0.6 的实时飞行数据为模拟数据，不需要连接真实无人机。普通地图默认使用 MapLibre GL JS 和 OpenStreetMap，无需申请 API Key；卫星地图可选用 MapTiler，需要自行申请 Key。Google 地图只保留接口，当前版本不会调用 Google API 或产生相关费用。
+
 ## 2. 一键启动与停止
 
 ### 一键启动
@@ -39,6 +41,10 @@ powershell -ExecutionPolicy Bypass -File .\start.ps1
 3. 查找 Maven、构建 Spring Boot JAR，并使用端口 8080 启动网站。
 4. 等待三个服务就绪。
 5. 打开 <http://127.0.0.1:8080>。
+
+实时监控页面：
+
+<http://127.0.0.1:8080/monitor>
 
 运行日志保存在：
 
@@ -70,11 +76,91 @@ powershell -ExecutionPolicy Bypass -File .\start.ps1 -NoBrowser
 -DbPassword         MySQL 密码，默认读取 DB_PASSWORD
 -PythonExecutable   Python 路径，默认自动查找 psdk 环境
 -MavenExecutable    Maven 路径，默认自动查找
+-MapProvider        地图提供者：maplibre、google 或 none，默认 maplibre
+-MapStyle           地图样式：osm 或 satellite，默认 osm
+-MapTilerApiKey     MapTiler Key，仅卫星地图需要
 ```
 
-以下第 3～5 节是单独启动各服务的备用方法，主要用于故障排查。
+## 3. 实时地图使用方法
 
-## 3. 手动启动 MySQL
+### 3.1 默认免费普通地图
+
+直接执行一键启动命令即可：
+
+```powershell
+cd J:\uav-smoke-platform\uav_smoke_platform\uav_smoke_platform
+powershell -ExecutionPolicy Bypass -File .\start.ps1
+```
+
+进入“实时监控”后可以看到：
+
+- 蓝色无人机标记及实时航向
+- 蓝色历史飞行轨迹
+- 红色烟雾目标
+- 黄色复查航点和虚线任务路线
+- 纬度、经度、高度、速度、航向和云台俯仰角
+- SSE 实时连接状态
+- “地图显示”下拉框，可在 OSM、卫星地图、仅坐标和 Google 预留模式之间切换
+- 地图右上角的 `+`、`−` 和“定位”按钮，用于缩放和重新跟随无人机
+
+地图切换会立即生效，不需要停止或重新启动服务。其中 Google 选项用于验证预留接口，目前会明确进入坐标面板；卫星地图没有配置 MapTiler Key 时会自动回退到 OSM，并说明原因。
+
+默认启用“跟随无人机”。手动滚轮缩放、双击缩放、触控缩放或拖动地图时，页面会自动关闭跟随，避免每秒一次的遥测定位动画打断用户操作。点击地图右上角“定位”可以重新开启跟随并回到无人机位置。
+
+目标列表中的“模拟识别分数”范围为 0～100。它只表示演示检测器倾向于把该目标识别成烟雾的程度，当前不是 YOLO 实际推理结果，也不表示火情严重程度。
+
+默认底图需要访问 MapLibre 脚本 CDN 和 OpenStreetMap 在线瓦片。它适合本机开发和功能演示；如果外网不可用，页面会自动进入无地图模式，坐标和遥测数据仍会继续更新。
+
+### 3.2 可选卫星地图
+
+先在 MapTiler 申请 API Key，然后在当前 PowerShell 窗口执行：
+
+```powershell
+$env:MAPTILER_API_KEY = "你的 MapTiler Key"
+powershell -ExecutionPolicy Bypass -File .\start.ps1 -MapStyle satellite
+```
+
+如果没有设置 Key，系统不会报错退出，而是显示提示并自动回退到 OpenStreetMap 普通地图。MapTiler 的免费额度和使用范围以其账户页面的当前条款为准，正式部署前应设置 Key 的来源限制。
+
+### 3.3 无地图与 Google 预留接口
+
+完全禁用在线地图，只查看坐标和遥测：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start.ps1 -MapProvider none
+```
+
+验证 Google 预留适配器：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start.ps1 -MapProvider google
+```
+
+Google 模式目前会明确显示“接口已保留”，并回退到坐标面板。后续接入时只需新增 Google 地图提供者实现，不需要修改遥测接口和页面业务数据结构。
+
+### 3.4 实时数据接口验证
+
+查看当前完整快照：
+
+```powershell
+curl.exe http://127.0.0.1:8080/api/telemetry/snapshot
+```
+
+持续查看 SSE 数据流，确认 `sequence`、经纬度和飞行参数不断变化：
+
+```powershell
+curl.exe -N http://127.0.0.1:8080/api/telemetry/stream
+```
+
+查看实际生效的地图模式：
+
+```powershell
+curl.exe http://127.0.0.1:8080/api/map/config
+```
+
+以下第 4～6 节是单独启动各服务的备用方法，主要用于故障排查。
+
+## 4. 手动启动 MySQL
 
 打开第一个 PowerShell 窗口，执行：
 
@@ -95,7 +181,7 @@ $mysqlBase = "$projectRoot\.runtime\mysql-dist\mysql-8.4.11-winx64"
 
 当前 `.runtime/mysql-data` 是本机临时验证数据库，`root` 用户为空密码。该配置只能用于本机开发验证，不能用于生产环境。
 
-## 4. 手动启动 FastAPI 分析服务
+## 5. 手动启动 FastAPI 分析服务
 
 打开第二个 PowerShell 窗口，执行：
 
@@ -118,7 +204,7 @@ $env:SMOKE_DEVICE = "0"
 
 能够看到 FastAPI 接口文档表示分析服务正常。
 
-## 5. 手动启动 Spring Boot 网站
+## 6. 手动启动 Spring Boot 网站
 
 打开第三个 PowerShell 窗口，执行：
 
@@ -148,7 +234,7 @@ $env:DB_PASSWORD = "你的 MySQL 密码"
 & $maven spring-boot:run
 ```
 
-## 6. 正常分析流程
+## 7. 正常分析流程
 
 本地测试视频位于：
 
@@ -192,22 +278,22 @@ J:\uav-smoke-platform\uav_smoke_platform\uav_smoke_platform\data\videos
 
 在 RTX 4070 Laptop GPU 上，`11.mp4` 的完整推理通常需要约 5 分钟。
 
-## 7. 失败与重试验证
+## 8. 失败与重试验证
 
 1. 上传一个新视频。
 2. 在 FastAPI 窗口按 `Ctrl+C` 停止分析服务。
 3. 在视频详情页点击“开始分析”。
 4. 确认页面显示 `FAILED`，并出现类似“无法连接烟雾分析服务”的错误信息。
-5. 按照第 4 节的命令重新启动 FastAPI。
+5. 按照第 5 节的命令重新启动 FastAPI。
 6. 返回详情页点击“重试分析”。
 7. 确认不需要重新上传视频，任务即可进入 `PENDING`、`RUNNING` 并最终变为 `COMPLETED`。
 
-## 8. 重启恢复验证
+## 9. 重启恢复验证
 
 在一个视频分析完成后执行以下检查：
 
 1. 在 Spring Boot 窗口按 `Ctrl+C` 停止网站。
-2. 按照第 5 节的命令重新启动 Spring Boot。
+2. 按照第 6 节的命令重新启动 Spring Boot。
 3. 打开原视频详情页。
 4. 确认分析状态、统计、关键帧和标注视频仍然存在。
 5. 停止并重新启动 FastAPI。
@@ -215,7 +301,7 @@ J:\uav-smoke-platform\uav_smoke_platform\uav_smoke_platform\data\videos
 
 这说明分析记录保存在 MySQL 中，分析产物保存在磁盘中，不依赖 Spring Boot 或 FastAPI 的进程内存。
 
-## 9. HTTP Range 验证
+## 10. HTTP Range 验证
 
 从视频详情页地址中取得视频 ID，然后执行：
 
@@ -239,9 +325,9 @@ Accept-Ranges: bytes
 
 HTTP Range 正常只是传输层验收，仍需在浏览器中实际播放并拖动视频，以确认浏览器能够解码 H.264 视频。
 
-## 10. 自动化测试
+## 11. 自动化测试
 
-### 10.1 Python 测试
+### 11.1 Python 测试
 
 ```powershell
 Set-Location "J:\uav-smoke-platform\uav_smoke_platform\uav_smoke_platform"
@@ -252,7 +338,7 @@ Set-Location "J:\uav-smoke-platform\uav_smoke_platform\uav_smoke_platform"
 
 通过标准：16 个测试全部通过并显示 `OK`。
 
-### 10.2 Spring Boot 测试
+### 11.2 Spring Boot 测试
 
 ```powershell
 Set-Location "J:\uav-smoke-platform\uav_smoke_platform\uav_smoke_platform\web\springboot\uav-video-platform"
@@ -262,9 +348,9 @@ $maven = "C:\Users\jb\.m2\wrapper\dists\apache-maven-3.9.16-bin\5grr65jo27hi51su
 & $maven test
 ```
 
-通过标准：21 个测试全部通过并显示 `BUILD SUCCESS`。
+通过标准：30 个测试全部通过并显示 `BUILD SUCCESS`。
 
-### 10.3 C++ 测试
+### 11.3 C++ 测试
 
 ```powershell
 Set-Location "J:\uav-smoke-platform\uav_smoke_platform\uav_smoke_platform"
@@ -282,18 +368,35 @@ ctest `
 
 通过标准：4 个测试全部通过，显示 `100% tests passed`。
 
-### 10.4 浏览器脚本语法检查
+### 11.4 浏览器脚本语法检查
 
 ```powershell
 Set-Location "J:\uav-smoke-platform\uav_smoke_platform\uav_smoke_platform"
 
 node --check `
   web\springboot\uav-video-platform\src\main\resources\static\js\video-detail.js
+
+node --check `
+  web\springboot\uav-video-platform\src\main\resources\static\js\live-monitor.js
 ```
 
 命令无输出且退出码为 0 表示通过。
 
-## 11. V0.5 验收清单
+## 12. V0.6 验收清单
+
+- [ ] 一键启动后首页、实时监控、视频库和 FastAPI 均可访问
+- [ ] 实时监控页显示“实时连接”和“模拟数据”
+- [ ] 无人机位置、轨迹点数量及遥测数值持续变化
+- [ ] 地图显示 2 个疑似烟雾目标、4 个复查航点和任务路线
+- [ ] 关闭“跟随无人机”后可以自由拖动地图
+- [ ] 页面内可以切换 OSM、卫星地图、仅坐标和 Google 预留模式
+- [ ] 不配置 MapTiler Key 并选择卫星图时自动回退 OSM
+- [ ] 使用 `-MapProvider none` 时坐标与遥测仍正常更新
+- [ ] 使用 `-MapProvider google` 时显示预留接口提示且页面不报错
+- [ ] SSE 接口持续输出递增的 `sequence`
+- [ ] Spring Boot 30 个测试和两个 JavaScript 语法检查通过
+
+V0.5 回归检查：
 
 - [ ] MySQL、FastAPI 和 Spring Boot 均可正常启动
 - [ ] 浏览器可以上传并管理视频

@@ -32,3 +32,21 @@ app:
     base-url: ${SMOKE_ANALYSIS_URL:http://127.0.0.1:8000}
     connect-timeout: 5s
     request-timeout: 30m
+  map:
+    provider: ${MAP_PROVIDER:maplibre}
+    style: ${MAP_STYLE:osm}
+    map-tiler-api-key: ${MAPTILER_API_KEY:}
+    map-libre-module-url: https://unpkg.com/maplibre-gl@6.2.0/dist/maplibre-gl.mjs
+    map-libre-stylesheet-url: https://unpkg.com/maplibre-gl@6.2.0/dist/maplibre-gl.css
+    osm-tile-url: https://tile.openstreetmap.org/{z}/{x}/{y}.png
+    osm-attribution: © OpenStreetMap contributors
+    map-tiler-satellite-style-url: https://api.maptiler.com/maps/satellite/style.json?key={key}
+    center-latitude: ${UAV_CENTER_LATITUDE:31.2304}
+    center-longitude: ${UAV_CENTER_LONGITUDE:121.4737}
+    zoom: ${MAP_ZOOM:15}
+  telemetry:
+    enabled: ${TELEMETRY_SIMULATION_ENABLED:true}
+    interval-ms: ${TELEMETRY_INTERVAL_MS:1000}
+    max-track-points: ${TELEMETRY_MAX_TRACK_POINTS:600}
+    center-latitude: ${UAV_CENTER_LATITUDE:31.2304}
+    center-longitude: ${UAV_CENTER_LONGITUDE:121.4737}
