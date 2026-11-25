@@ -10,3 +10,13 @@
 
 # Keep generated build files out of Git.
 /uav_smoke_platform/build/
+uav_smoke_platform/data/videos/
+/uav_smoke_platform/models/
+
+# Independent, hardware-free C++ event gateway.
+!/smoke_gateway/
+!/smoke_gateway/**
+/smoke_gateway/build*/
+/smoke_gateway/results/
+/smoke_gateway/*.journal
+/smoke_gateway/**/__pycache__/
