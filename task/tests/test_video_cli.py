@@ -201,6 +201,10 @@ class VideoCliTests(unittest.TestCase):
         records = [strict_json(line) for line in target_file.read_text(encoding="utf-8").splitlines()]
         self.assertEqual([record["frame_id"] for record in records], list(range(4)))
         self.assertEqual(summary["selected_frame_count"], sum(record["selected_index"] >= 0 for record in records))
+        # target_changed flags in records must match the summary's audit count.
+        self.assertEqual(summary["target_changes"],
+                         sum(record["target_changed"] for record in records))
+        self.assertLessEqual(summary["target_changes"], summary["selected_frame_count"])
         for record in records:
             self.assertEqual(record["hardware_commands"], 0)
             self.assertEqual(record["stream_epoch"], summary["stream_epoch"])

@@ -267,6 +267,7 @@ std::string AnalyzeVideo(const VideoOptions &o)
         gimbal_config.enabled = true; // Suggestions only; never calls the SDK.
         GimbalController gimbal(gimbal_config, TimeBase::Replay);
         std::uint64_t selected_count = 0;
+        std::uint64_t target_changes = 0;
         BoundedQueue<VideoFrame> queue(2);
         std::atomic<bool> cancelled{false}, done{false};
         std::exception_ptr producer_error;
@@ -324,6 +325,7 @@ std::string AnalyzeVideo(const VideoOptions &o)
                 chosen.box = smoke_boxes.at(static_cast<std::size_t>(selection.selected_index));
                 steering = gimbal.Update(chosen, frame.stamp.time_sec);
                 ++selected_count;
+                if (selection.target_changed) { ++target_changes; }
             } else {
                 gimbal.Reset();
             }
@@ -424,7 +426,8 @@ std::string AnalyzeVideo(const VideoOptions &o)
         } else {
             summary << ",\"first_detection_sec\":null,\"last_detection_sec\":null,\"first_detection_frame\":null,\"last_detection_frame\":null,\"max_confidence\":null,\"max_confidence_frame\":null,\"mean_confidence\":null";
         }
-        summary << ",\"target_selection_file\":\"target_selection.jsonl\",\"selected_frame_count\":" << selected_count;
+        summary << ",\"target_selection_file\":\"target_selection.jsonl\",\"selected_frame_count\":" << selected_count
+            << ",\"target_changes\":" << target_changes;
         summary << ",\"keyframes\":" << keyframe_json.str() << ",\"queue_capacity\":2,\"queue_high_water\":" << queue.HighWaterMark()
             << ",\"dropped_frames\":" << queue.Dropped() << ",\"elapsed_sec\":" << seconds << ",\"inference_elapsed_sec\":" << inference_seconds
             << ",\"inference_fps\":" << static_cast<double>(stats.FrameCount()) / inference_seconds << ",\"peak_rss_bytes\":" << PeakRssBytes() << '}';
