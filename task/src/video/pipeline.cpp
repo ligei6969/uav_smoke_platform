@@ -1,5 +1,7 @@
 #include "smoke/video_pipeline.hpp"
 #include "smoke/bounded_queue.hpp"
+#include "smoke/target_selector.hpp"
+#include "smoke/gimbal.hpp"
 #include "smoke/replay_io.hpp"
 #include "smoke/video_model.hpp"
 #include "smoke/video_report.hpp"
@@ -110,7 +112,7 @@ void Rename(const std::string &from, const std::string &to)
 void CheckBudget(const std::string &dir, std::uint64_t limit)
 {
     std::uint64_t total = 0;
-    for (const char *name : {"annotated_video.part.mp4", "detection_results.part.json", "video_summary.part.json"}) {
+    for (const char *name : {"annotated_video.part.mp4", "detection_results.part.json", "video_summary.part.json", "target_selection.part.jsonl"}) {
         const auto path = Path(dir, name);
         struct stat info;
         if (stat(path.c_str(), &info) == 0) { total += FileSize(path); }
@@ -257,6 +259,14 @@ std::string AnalyzeVideo(const VideoOptions &o)
             << ",\"stream_epoch\":" << o.stream_epoch
             << ",\"frame_id_base\":0,\"timestamp_basis\":\"cfr_frame_index\",\"fps\":" << fps
             << ",\"frame_count\":" << expected << ",\"width\":" << width << ",\"height\":" << height << ",\"detections\":[";
+        const auto target_part = Path(o.output_dir, "target_selection.part.jsonl");
+        std::ofstream target_records(target_part);
+        target_records.exceptions(std::ios::badbit | std::ios::failbit);
+        TargetSelector target_selector;
+        GimbalConfig gimbal_config;
+        gimbal_config.enabled = true; // Suggestions only; never calls the SDK.
+        GimbalController gimbal(gimbal_config, TimeBase::Replay);
+        std::uint64_t selected_count = 0;
         BoundedQueue<VideoFrame> queue(2);
         std::atomic<bool> cancelled{false}, done{false};
         std::exception_ptr producer_error;
@@ -271,6 +281,7 @@ std::string AnalyzeVideo(const VideoOptions &o)
                     }
                     if (id >= expected) { throw std::runtime_error("video_frame_count_exceeds_metadata"); }
                     frame.stamp.source = o.source; frame.stamp.frame_id = id++;
+                    frame.stamp.stream_epoch = o.stream_epoch;
                     frame.stamp.time_sec = static_cast<double>(frame.stamp.frame_id) / fps;
                     frame.stamp.lens = o.lens; frame.stamp.time_base = TimeBase::Replay;
                     while (!cancelled.load() && !queue.PushFor(frame, std::chrono::milliseconds(100))) {}
@@ -301,6 +312,33 @@ std::string AnalyzeVideo(const VideoOptions &o)
                 else { ++cloud_count; }
             }
             stats.Add(frame.stamp.frame_id, frame.stamp.time_sec, smoke_boxes);
+            // Process every frame, including no-detection frames. Never reuse an
+            // old selected box to keep moving the gimbal after target loss.
+            const auto selection = target_selector.Update(frame.stamp, width, height,
+                                                           smoke_boxes, frame.stamp.time_sec);
+            GimbalDecision steering;
+            steering.reason = "no_current_target";
+            if (selection.selected_index >= 0) {
+                Detection chosen;
+                chosen.stamp = frame.stamp; chosen.width = width; chosen.height = height;
+                chosen.box = smoke_boxes.at(static_cast<std::size_t>(selection.selected_index));
+                steering = gimbal.Update(chosen, frame.stamp.time_sec);
+                ++selected_count;
+            } else {
+                gimbal.Reset();
+            }
+            target_records << std::setprecision(15) << "{\"frame_id\":" << frame.stamp.frame_id
+                << ",\"timestamp_sec\":" << frame.stamp.time_sec << ",\"stream_epoch\":" << frame.stamp.stream_epoch
+                << ",\"selected_index\":" << selection.selected_index
+                << ",\"reason\":" << JsonString(selection.reason)
+                << ",\"target_changed\":" << (selection.target_changed ? "true" : "false")
+                << ",\"box\":" << (selection.selected_index < 0 ? "null" :
+                    BoxJson(smoke_boxes.at(static_cast<std::size_t>(selection.selected_index))))
+                << ",\"gimbal_suggestion_permitted\":" << (steering.permitted ? "true" : "false")
+                << ",\"gimbal_reason\":" << JsonString(steering.reason)
+                << ",\"yaw_step_deg\":" << steering.yaw_step_deg
+                << ",\"pitch_step_deg\":" << steering.pitch_step_deg << ",\"hardware_commands\":0}\n";
+            target_records.flush();
             if (!smoke_boxes.empty()) {
                 if (!first_json) { detections << ','; }
                 first_json = false;
@@ -331,7 +369,7 @@ std::string AnalyzeVideo(const VideoOptions &o)
         guard.Finish(); capture.release();
         if (producer_error) { std::rethrow_exception(producer_error); }
         if (stats.FrameCount() != expected || interrupted) { throw std::runtime_error("analysis_incomplete"); }
-        detections << "]}\n"; detections.close(); writer.release();
+        detections << "]}\n"; detections.close(); target_records.close(); writer.release();
         CheckBudget(o.output_dir, o.max_output_bytes);
         // Re-decode every output frame; a successfully opened writer alone is not proof of a valid video.
         cv::VideoCapture verification(video_part, cv::CAP_FFMPEG);
@@ -386,6 +424,7 @@ std::string AnalyzeVideo(const VideoOptions &o)
         } else {
             summary << ",\"first_detection_sec\":null,\"last_detection_sec\":null,\"first_detection_frame\":null,\"last_detection_frame\":null,\"max_confidence\":null,\"max_confidence_frame\":null,\"mean_confidence\":null";
         }
+        summary << ",\"target_selection_file\":\"target_selection.jsonl\",\"selected_frame_count\":" << selected_count;
         summary << ",\"keyframes\":" << keyframe_json.str() << ",\"queue_capacity\":2,\"queue_high_water\":" << queue.HighWaterMark()
             << ",\"dropped_frames\":" << queue.Dropped() << ",\"elapsed_sec\":" << seconds << ",\"inference_elapsed_sec\":" << inference_seconds
             << ",\"inference_fps\":" << static_cast<double>(stats.FrameCount()) / inference_seconds << ",\"peak_rss_bytes\":" << PeakRssBytes() << '}';
@@ -396,6 +435,7 @@ std::string AnalyzeVideo(const VideoOptions &o)
         if (interrupted) { throw std::runtime_error("analysis_interrupted"); }
         Rename(video_part, Path(o.output_dir, "annotated_video.mp4"));
         Rename(detection_part, Path(o.output_dir, "detection_results.json"));
+        Rename(target_part, Path(o.output_dir, "target_selection.jsonl"));
         Rename(keyframes_part, Path(o.output_dir, "keyframes"));
         if (interrupted) { throw std::runtime_error("analysis_interrupted"); }
         Rename(summary_part, Path(o.output_dir, "video_summary.json")); // Completion marker is published last.

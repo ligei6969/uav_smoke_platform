@@ -197,6 +197,27 @@ class VideoCliTests(unittest.TestCase):
                 self.assertLessEqual(payload["mean_confidence"], payload["max_confidence"])
                 self.assertLessEqual(payload["max_confidence"], 1.0)
         self.assertEqual(stdout_summary, summary)
+        target_file = output / summary["target_selection_file"]
+        records = [strict_json(line) for line in target_file.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual([record["frame_id"] for record in records], list(range(4)))
+        self.assertEqual(summary["selected_frame_count"], sum(record["selected_index"] >= 0 for record in records))
+        for record in records:
+            self.assertEqual(record["hardware_commands"], 0)
+            self.assertEqual(record["stream_epoch"], summary["stream_epoch"])
+            self.assertIsInstance(record["reason"], str)
+            if record["selected_index"] < 0:
+                self.assertIsNone(record["box"])
+                self.assertFalse(record["gimbal_suggestion_permitted"])
+                self.assertEqual(record["yaw_step_deg"], 0)
+                self.assertEqual(record["pitch_step_deg"], 0)
+        # Verify the real pipeline's bounded buffering and resource telemetry.
+        # Recorded video applies backpressure: it must not drop decoded frames.
+        self.assertEqual(summary["queue_capacity"], 2)
+        self.assertGreaterEqual(summary["queue_high_water"], 1)
+        self.assertLessEqual(summary["queue_high_water"], summary["queue_capacity"])
+        self.assertEqual(summary["dropped_frames"], 0)
+        self.assertEqual(summary["opencv_threads"], 2)
+        self.assertGreater(summary["peak_rss_bytes"], 0)
         keyframes = summary["keyframes"]
         self.assertIsInstance(keyframes, list)
         self.assertLessEqual(len(keyframes), 3)

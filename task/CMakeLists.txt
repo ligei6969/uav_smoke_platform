@@ -16,6 +16,7 @@ endif()
 find_package(Threads REQUIRED)
 add_library(smoke_core
     src/core/types.cpp
+    src/tracking/target_selector.cpp
     src/replay/replay_io.cpp
     src/telemetry/telemetry.cpp
     src/localization/localization.cpp
@@ -81,7 +82,7 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
-    foreach(name queue localization gimbal io events h264_stream)
+    foreach(name queue localization gimbal io events h264_stream target_selector)
         add_executable(test_${name} tests/test_${name}.cpp)
         target_link_libraries(test_${name} PRIVATE smoke_core)
         add_test(NAME ${name} COMMAND test_${name})
@@ -105,6 +106,24 @@ if(BUILD_TESTING)
     set_tests_properties(replay_integration PROPERTIES TIMEOUT 30)
     add_test(NAME detection_export COMMAND "${SMOKE_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_export_detections.py")
     set_tests_properties(detection_export PROPERTIES TIMEOUT 30)
+    if(UNIX)
+        # Compile the real legacy lifecycle code with controlled FFmpeg fault
+        # injection; never links the SDK or requires an aircraft.
+        set(SMOKE_LEGACY_LIVEVIEW "${CMAKE_CURRENT_SOURCE_DIR}/../samples/sample_c++/module_sample/liveview")
+        add_executable(test_legacy_lifecycle
+            "${SMOKE_LEGACY_LIVEVIEW}/dji_camera_stream_decoder.cpp"
+            "${SMOKE_LEGACY_LIVEVIEW}/dji_camera_image_handler.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/legacy_liveview/test_legacy.cpp")
+        target_include_directories(test_legacy_lifecycle PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/legacy_liveview/stubs" "${SMOKE_LEGACY_LIVEVIEW}")
+        target_compile_definitions(test_legacy_lifecycle PRIVATE FFMPEG_INSTALLED)
+        target_compile_options(test_legacy_lifecycle PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+        target_link_libraries(test_legacy_lifecycle PRIVATE smoke_core)
+        add_test(NAME legacy_lifecycle COMMAND test_legacy_lifecycle)
+        set_tests_properties(legacy_lifecycle PROPERTIES TIMEOUT 15)
+        add_test(NAME video_watchdog COMMAND "${SMOKE_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_guarded.py")
+        set_tests_properties(video_watchdog PROPERTIES TIMEOUT 15)
+    endif()
     if(SMOKE_WITH_VIDEO)
         foreach(name video_model video_report)
             add_executable(test_${name} tests/test_${name}.cpp)

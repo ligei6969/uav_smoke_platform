@@ -1,0 +1,340 @@
+--- a/samples/sample_c++/module_sample/liveview/dji_camera_stream_decoder.cpp
++++ b/samples/sample_c++/module_sample/liveview/dji_camera_stream_decoder.cpp
+@@ -27,6 +27,15 @@
+ #include "unistd.h"
+ #include "pthread.h"
+ #include "dji_logger.h"
++#include <mutex>
++#include <exception>
++
++namespace {
++// Lifecycle methods belong to the owner thread. Reject direct callback reentry
++// before taking lifecycleMutex, so stop/join cannot wait on a callback waiting
++// on that same mutex. Do not read pthread_t from another thread to detect this.
++thread_local DJICameraStreamDecoder *callbackOwner = nullptr;
++}
+ 
+ /* Private constants ---------------------------------------------------------*/
+ 
+@@ -50,8 +59,8 @@
+       pSwsCtx(nullptr),
+       pFrameYUV(nullptr),
+       pFrameRGB(nullptr),
++#endif
+       rgbBuf(nullptr),
+-#endif
+       bufSize(0)
+ {
+     pthread_mutex_init(&decodemutex, nullptr);
+@@ -59,18 +68,23 @@
+ 
+ DJICameraStreamDecoder::~DJICameraStreamDecoder()
+ {
++    if (callbackOwner == this || !registerCallback(nullptr, nullptr)) {
++        std::terminate(); // Destroying an object still executing its callback is invalid.
++    }
++    cleanup();
+     pthread_mutex_destroy(&decodemutex);
+-    if(cb)
+-    {
+-        registerCallback(nullptr, nullptr);
+-    }
+-
+-    cleanup();
+ }
+ 
+ bool DJICameraStreamDecoder::init()
+ {
+-    pthread_mutex_lock(&decodemutex);
++    if (callbackOwner == this) { return false; }
++    // Cover every early return, including repeated init and allocation failures.
++    std::unique_lock<std::mutex> lifecycleLock(lifecycleMutex);
++    struct DecodeLock {
++        pthread_mutex_t *mutex;
++        explicit DecodeLock(pthread_mutex_t *m) : mutex(m) { pthread_mutex_lock(mutex); }
++        ~DecodeLock() { pthread_mutex_unlock(mutex); }
++    } lock(&decodemutex);
+ 
+     if (true == initSuccess) {
+         USER_LOG_INFO("Decoder already initialized.\n");
+@@ -81,27 +95,32 @@
+     avcodec_register_all();
+     pCodecCtx = avcodec_alloc_context3(nullptr);
+     if (!pCodecCtx) {
++        releaseResources();
+         return false;
+     }
+ 
+     pCodecCtx->thread_count = 4;
+     pCodec = avcodec_find_decoder(AV_CODEC_ID_H264);
+     if (!pCodec || avcodec_open2(pCodecCtx, pCodec, nullptr) < 0) {
++        releaseResources();
+         return false;
+     }
+ 
+     pCodecParserCtx = av_parser_init(AV_CODEC_ID_H264);
+     if (!pCodecParserCtx) {
++        releaseResources();
+         return false;
+     }
+ 
+     pFrameYUV = av_frame_alloc();
+     if (!pFrameYUV) {
++        releaseResources();
+         return false;
+     }
+ 
+     pFrameRGB = av_frame_alloc();
+     if (!pFrameRGB) {
++        releaseResources();
+         return false;
+     }
+ 
+@@ -110,16 +129,21 @@
+     pCodecCtx->flags2 |= AV_CODEC_FLAG2_SHOW_ALL;
+ #endif
+     initSuccess = true;
++    return true;
++}
++
++void DJICameraStreamDecoder::cleanup()
++{
++    if (callbackOwner == this || !registerCallback(nullptr, nullptr)) { return; }
++    pthread_mutex_lock(&decodemutex);
++
++    initSuccess = false;
++    releaseResources();
+     pthread_mutex_unlock(&decodemutex);
+-
+-    return true;
+-}
+-
+-void DJICameraStreamDecoder::cleanup()
+-{
+-    pthread_mutex_lock(&decodemutex);
+-
+-    initSuccess = false;
++}
++
++void DJICameraStreamDecoder::releaseResources()
++{
+ 
+ #ifdef FFMPEG_INSTALLED
+     if (nullptr != pSwsCtx) {
+@@ -157,7 +181,7 @@
+         pFrameRGB = nullptr;
+     }
+ #endif
+-    pthread_mutex_unlock(&decodemutex);
++    bufSize = 0;
+ }
+ 
+ void *DJICameraStreamDecoder::callbackThreadEntry(void *p)
+@@ -170,6 +194,11 @@
+ 
+ void DJICameraStreamDecoder::callbackThreadFunc()
+ {
++    struct CallbackScope {
++        DJICameraStreamDecoder *previous;
++        explicit CallbackScope(DJICameraStreamDecoder *owner) : previous(callbackOwner) { callbackOwner = owner; }
++        ~CallbackScope() { callbackOwner = previous; }
++    } callbackScope(this);
+     while (cbThreadIsRunning) {
+         CameraRGBImage copyOfImage;
+         if (!decodedImageHandler.getNewImageWithLock(copyOfImage, 1000)) {
+@@ -185,9 +214,11 @@
+ 
+ void DJICameraStreamDecoder::decodeBuffer(const uint8_t *buf, int bufLen)
+ {
++    if (buf == nullptr || bufLen <= 0) { return; }
+     const uint8_t *pData = buf;
+     int remainingLen = bufLen;
+     int processedLen = 0;
++    int bufferedPacketWithoutConsumption = 0;
+ 
+ #ifdef FFMPEG_INSTALLED
+     AVPacket pkt;
+@@ -202,6 +233,20 @@
+                                         &pkt.data, &pkt.size,
+                                         pData, remainingLen,
+                                         AV_NOPTS_VALUE, AV_NOPTS_VALUE, AV_NOPTS_VALUE);
++        if (processedLen < 0 || processedLen > remainingLen) {
++            USER_LOG_ERROR("H264 parser returned an invalid byte count");
++            break;
++        }
++        // FFmpeg may emit one buffered packet before consuming this fragment.
++        // Bound that case so malformed input cannot spin on the SDK callback.
++        if (processedLen == 0) {
++            if (pkt.size <= 0 || ++bufferedPacketWithoutConsumption > 1) {
++                USER_LOG_ERROR("H264 parser made no progress; discard current fragment");
++                break;
++            }
++        } else {
++            bufferedPacketWithoutConsumption = 0;
++        }
+         remainingLen -= processedLen;
+         pData += processedLen;
+ 
+@@ -249,36 +294,31 @@
+ 
+ bool DJICameraStreamDecoder::registerCallback(CameraImageCallback f, void *param)
+ {
++    if (callbackOwner == this) { return false; }
++    std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex);
++    if (cbThreadStatus == 0) {
++        // Keep callback and userData stable until the worker has stopped.
++        cbThreadIsRunning.store(false);
++        if (pthread_join(callbackThread, nullptr) != 0) {
++            USER_LOG_ERROR("Cannot join decoder callback thread");
++            return false;
++        }
++        cbThreadStatus = -1;
++    }
+     cb = f;
+     cbUserParam = param;
+-
+-    /* When users register a non-nullptr callback, we will start the callback thread. */
+-    if (nullptr != cb) {
+-        if (!cbThreadIsRunning) {
+-            cbThreadStatus = pthread_create(&callbackThread, nullptr, callbackThreadEntry, this);
+-            if (0 == cbThreadStatus) {
+-                //DSTATUS_PRIVATE("User callback thread created successfully!\n");
+-                cbThreadIsRunning = true;
+-                return true;
+-            } else {
+-                //DERROR_PRIVATE("User called thread creation failed!\n");
+-                cbThreadIsRunning = false;
+-                return false;
+-            }
+-        } else {
+-            //DERROR_PRIVATE("Callback thread already running!\n");
+-            return true;
+-        }
+-    } else {
+-        if (cbThreadStatus == 0) {
+-            cbThreadIsRunning = false;
+-            pthread_join(callbackThread, nullptr);
+-            cbThreadStatus = -1;
+-        }
+-        return true;
+-    }
+-}
+-
+-/* Private functions definition-----------------------------------------------*/
++    if (f == nullptr) { return true; }
++
++    // Set before pthread_create: the worker may run immediately.
++    cbThreadIsRunning.store(true);
++    cbThreadStatus = pthread_create(&callbackThread, nullptr, callbackThreadEntry, this);
++    if (cbThreadStatus != 0) {
++        cbThreadIsRunning.store(false);
++        cb = nullptr;
++        cbUserParam = nullptr;
++        return false;
++    }
++    return true;
++}
+ 
+ /****************** (C) COPYRIGHT DJI Innovations *****END OF FILE****/
+--- a/samples/sample_c++/module_sample/liveview/dji_camera_stream_decoder.hpp
++++ b/samples/sample_c++/module_sample/liveview/dji_camera_stream_decoder.hpp
+@@ -37,6 +37,8 @@
+ }
+ 
+ #include "pthread.h"
++#include <atomic>
++#include <mutex>
+ #include "dji_camera_image_handler.hpp"
+ 
+ #ifdef __cplusplus
+@@ -48,6 +50,9 @@
+ /* Exported types ------------------------------------------------------------*/
+ class DJICameraStreamDecoder {
+ public:
++    // Lifecycle methods (including destruction) are called serially by the
++    // owner thread, never by the image callback. Direct callback reentry is
++    // rejected; the owner must stop the external H264 producer before cleanup.
+     DJICameraStreamDecoder();
+     ~DJICameraStreamDecoder();
+     bool init();
+@@ -60,9 +65,12 @@
+     DJICameraImageHandler decodedImageHandler;
+ 
+ private:
++    // Caller holds decodemutex; also handles partially initialized decoders.
++    void releaseResources();
+     pthread_t callbackThread;
+     bool initSuccess;
+-    bool cbThreadIsRunning;
++    std::atomic<bool> cbThreadIsRunning;
++    std::mutex lifecycleMutex;
+     int cbThreadStatus;
+     CameraImageCallback cb;
+     void *cbUserParam;
+--- a/samples/sample_c++/module_sample/liveview/dji_camera_image_handler.cpp
++++ b/samples/sample_c++/module_sample/liveview/dji_camera_image_handler.cpp
+@@ -24,6 +24,8 @@
+ 
+ /* Includes ------------------------------------------------------------------*/
+ #include "dji_camera_image_handler.hpp"
++#include <cerrno>
++#include <ctime>
+ 
+ /* Private constants ---------------------------------------------------------*/
+ 
+@@ -48,37 +50,34 @@
+ 
+ bool DJICameraImageHandler::getNewImageWithLock(CameraRGBImage &copyOfImage, int timeoutMilliSec)
+ {
+-    int result;
++    if (timeoutMilliSec < 0) { return false; }
++    timespec deadline;
++    if (clock_gettime(CLOCK_REALTIME, &deadline) != 0) { return false; }
++    deadline.tv_sec += timeoutMilliSec / 1000;
++    deadline.tv_nsec += static_cast<long>(timeoutMilliSec % 1000) * 1000000L;
++    if (deadline.tv_nsec >= 1000000000L) {
++        ++deadline.tv_sec;
++        deadline.tv_nsec -= 1000000000L;
++    }
+ 
+-    /*! @note
+-     * Here result == 0 means successful.
+-     * Because this is the behavior of pthread_cond_timedwait.
+-     */
+     pthread_mutex_lock(&m_mutex);
+-    if (m_newImageFlag) {
+-        /* At this point, a copy of m_img is made, so it is safe to
+-         * do any modifications to copyOfImage in user code.
+-         */
++    int result = 0;
++    // POSIX permits spurious wakeups. Only a published image is consumable.
++    while (!m_newImageFlag && result == 0) {
++        result = pthread_cond_timedwait(&m_condv, &m_mutex, &deadline);
++    }
++    const bool available = result == 0 && m_newImageFlag;
++    if (available) {
+         copyOfImage = m_img;
+         m_newImageFlag = false;
+-        result = 0;
+-    } else {
+-        struct timespec absTimeout;
+-        clock_gettime(CLOCK_REALTIME, &absTimeout);
+-        absTimeout.tv_nsec += timeoutMilliSec * 1e6;
+-        result = pthread_cond_timedwait(&m_condv, &m_mutex, &absTimeout);
+-
+-        if (result == 0) {
+-            copyOfImage = m_img;
+-            m_newImageFlag = false;
+-        }
+     }
+     pthread_mutex_unlock(&m_mutex);
+-    return (result == 0) ? true : false;
++    return available;
+ }
+ 
+ void DJICameraImageHandler::writeNewImageWithLock(uint8_t *buf, int bufSize, int width, int height)
+ {
++    if (buf == nullptr || bufSize <= 0 || width <= 0 || height <= 0) { return; }
+     pthread_mutex_lock(&m_mutex);
+ 
+     m_img.rawData.assign(buf, buf + bufSize);

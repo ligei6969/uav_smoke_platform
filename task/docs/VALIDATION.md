@@ -124,3 +124,16 @@ ctest --test-dir task/build-linux-asan --output-on-failure
 | WSL2 Release + OpenCV/FFmpeg 视频管线 | CTest 11/11(回归不受影响) |
 
 遗留:解码器本体接入(FFmpeg/OpenCV 接口适配)与真实 H264 流验证依赖 T14 采集;本模块不解析 SPS 参数内容,分辨率契约由调用方提供。
+
+## 视频资源约束回归补充（2026-11-25）
+
+现有录制视频流水线已采用独立解码生产线程、单模型消费者与容量2的帧队列。本次没有改变解码、推理或硬件控制行为；在 `tests/test_video_cli.py` 的真实模型＋合成MP4成功用例中增加资源契约检查：队列容量2、高水位1至容量之间、录制视频背压零丢帧、OpenCV计算线程数2、进程峰值RSS大于0。
+
+执行：`ctest --test-dir task/build-video --output-on-failure`，WSL2 Ubuntu 24.04，11/11组通过（6.24秒），其中 `video_cli` 4.53秒。该构建的测试目录包含 queue、localization、gimbal、io、events、psdk_mapping、replay_integration、detection_export、video_model、video_report、video_cli。
+
+资源检查基于真实CPU模型对合成视频的运行结果；不是GPU或实机吞吐测试。`opencv_threads=2`只表示OpenCV计算线程设置，不等同整个进程或FFmpeg内部线程总数。
+
+
+## 多目标选择与卡流缺陷修复（2026-11-25）
+
+新增逐帧目标选择及云台决策旁路，接入单消费者视频管线；修复旧decoder初始化锁泄漏、回调重入、条件等待与parser零进展问题；增加进程级超时保护。Linux全新Release构建CTest 15/15通过（9.88秒）；ASan/UBSan定向gimbal/h264_stream/target_selector/legacy_lifecycle 4/4通过（3.37秒）。选择器83项检查通过。详细实现、Nano优化路径与实机待验证项见 `RUNTIME_REVIEW.md`。本轮没有Nano GPU性能或实机执行验证。

@@ -1,0 +1,22 @@
+[
+  {
+    "path": "samples/sample_c++/module_sample/liveview/dji_camera_stream_decoder.cpp",
+    "before_sha256": "936c61e5c9ec621ad6c915b735f8612c182d41625fd65eacd8d5d1454b4c13d7",
+    "after_sha256": "9397faf14c5f4a3e599236c60801bce2596d809516483b144990ba14a33a6931"
+  },
+  {
+    "path": "samples/sample_c++/module_sample/liveview/dji_camera_stream_decoder.hpp",
+    "before_sha256": "c33333df547f27b681079d2c4f8355e6c28c0165adb3fd4cd488bf79fd12e328",
+    "after_sha256": "a24e2e1bd0662a8195ea7e79169d7d441d0c2c8b3a0a12514dc7331d03b93f70"
+  },
+  {
+    "path": "samples/sample_c++/module_sample/liveview/dji_camera_image_handler.cpp",
+    "before_sha256": "48819455bd6f7a88643e970561e0bb0dbb5a335fde68f7008de31ce43a63ee8e",
+    "after_sha256": "d94725bc890a588fa7de3ac2dc9d1c9c8bd7c92528ecdd106ecb7c7215161bfb"
+  },
+  {
+    "path": "samples/sample_c++/module_sample/liveview/dji_camera_image_handler.hpp",
+    "before_sha256": "a8c4a185ab83c8d049c70657d200a5bcf8cacc844dfdc9b3e570c22aba7abfbc",
+    "after_sha256": "a8c4a185ab83c8d049c70657d200a5bcf8cacc844dfdc9b3e570c22aba7abfbc"
+  }
+]
