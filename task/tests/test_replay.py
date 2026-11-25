@@ -201,6 +201,131 @@ class ReplayIntegrationTests(unittest.TestCase):
         self.assertAlmostEqual(rows[0]["longitude_deg"], 120.0, places=8)
 
 
+    def test_stable_events_are_emitted_to_evidence(self):
+        # 4 consecutive strong frames: one event; min threshold 3.
+        rows = [detection(frame_id=i, timestamp=i / 30.0) for i in range(1, 5)]
+        process, output = self.invoke(
+            rows,
+            extra=("--events-output", str(self.root / "evidence.jsonl"),
+                   "--min-event-frames", "3"),
+            name="events-ok",
+        )
+        summary, _ = self.success(process, output)
+        self.assertEqual(summary["events_emitted"], 1)
+        events_path = self.root / "evidence.jsonl"
+        self.assertTrue(events_path.exists())
+        marker = self.root / "evidence.jsonl.complete"
+        self.assertTrue(marker.exists())
+        records = [strict_json(line) for line in
+                   events_path.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(len(records), 1)
+        record = records[0]
+        self.assertEqual(record["event_id"], 1)
+        self.assertEqual(record["frame_count"], 4)
+        self.assertEqual(record["first_frame"], 1)
+        self.assertEqual(record["last_frame"], 4)
+        self.assertEqual(record["source"], SOURCE)
+        self.assertEqual(record["hardware_commands"], 0)
+        self.assertEqual(record["event_model"], "metadata_stability_decision")
+
+    def test_below_threshold_no_event(self):
+        rows = [detection(frame_id=i, timestamp=i / 30.0) for i in range(1, 3)]
+        process, output = self.invoke(
+            rows,
+            extra=("--events-output", str(self.root / "evidence2.jsonl"),
+                   "--min-event-frames", "3"),
+            name="events-short",
+        )
+        summary, _ = self.success(process, output)
+        self.assertEqual(summary["events_emitted"], 0)
+        self.assertFalse((self.root / "evidence2.jsonl").exists())
+        # Without a completed store there must be no completion marker either.
+        self.assertFalse((self.root / "evidence2.jsonl.complete").exists())
+
+    def test_negative_frame_splits_events(self):
+        # The exporter accepts positive boxes only; a weak box below the
+        # confidence gate plays the negative role between two strong runs.
+        weak = detection(frame_id=4, timestamp=4 / 30.0).replace(",0.9\n", ",0.2\n")
+        rows = (
+            [detection(frame_id=i, timestamp=i / 30.0) for i in (1, 2, 3)]
+            + [weak]
+            + [detection(frame_id=i, timestamp=i / 30.0) for i in (5, 6, 7)]
+        )
+        process, output = self.invoke(
+            rows,
+            extra=("--events-output", str(self.root / "evidence3.jsonl"),
+                   "--min-event-frames", "3"),
+            name="events-split",
+        )
+        summary, _ = self.success(process, output)
+        self.assertEqual(summary["events_emitted"], 2)
+        records = [strict_json(line) for line in
+                   (self.root / "evidence3.jsonl").read_text(
+                       encoding="utf-8").splitlines()]
+        self.assertEqual([r["event_id"] for r in records], [1, 2])
+        self.assertEqual(records[0]["last_frame"], 3)
+        self.assertEqual(records[1]["first_frame"], 5)
+        self.assertTrue((self.root / "evidence3.jsonl.complete").exists())
+
+    def test_events_output_must_differ_from_other_files(self):
+        # Three strong frames guarantee one event, so the lazy evidence store
+        # is actually created and the name clash is reached.
+        rows = [detection(frame_id=i, timestamp=i / 30.0) for i in (1, 2, 3)]
+        process, _ = self.invoke(
+            rows,
+            extra=("--events-output", str(self.root / "events-clash-evaluation.jsonl"),
+                   "--min-event-frames", "3"),
+            name="events-clash", timeout=5,
+        )
+        self.assertNotEqual(process.returncode, 0)
+        self.assertIn("events_output_must_differ", process.stderr)
+
+    def test_existing_events_output_is_not_overwritten(self):
+        rows = [detection(frame_id=i, timestamp=i / 30.0) for i in (1, 2, 3)]
+        process, output = self.invoke(
+            rows,
+            extra=("--events-output", str(self.root / "evidence5.jsonl"),
+                   "--min-event-frames", "3"),
+            name="events-first",
+        )
+        self.success(process, output)
+        repeated, _ = self.invoke(
+            rows,
+            extra=("--events-output", str(self.root / "evidence5.jsonl"),
+                   "--min-event-frames", "3"),
+            name="events-repeat", timeout=5,
+        )
+        self.assertNotEqual(repeated.returncode, 0)
+        self.assertIn("cannot_create_events_output_exclusively", repeated.stderr)
+        self.assertTrue((self.root / "evidence5.jsonl.complete").exists())
+
+    def test_event_quota_leaves_no_completion_marker(self):
+        # Interleave three strong runs with weak frames so three event records
+        # (~400 bytes each) exceed the 1024-byte floor.
+        rows = []
+        frame = 1
+        for run in range(3):
+            for _ in range(3):
+                rows.append(detection(frame_id=frame, timestamp=frame / 30.0))
+                frame += 1
+            rows.append(detection(frame_id=frame, timestamp=frame / 30.0)
+                        .replace(",0.9\n", ",0.2\n"))
+            frame += 1
+        rows.append(detection(frame_id=frame, timestamp=frame / 30.0))
+        process, output = self.invoke(
+            rows,
+            extra=("--events-output", str(self.root / "evidence6.jsonl"),
+                   "--min-event-frames", "3", "--max-event-bytes", "1024"),
+            name="events-quota", timeout=5,
+        )
+        self.assertNotEqual(process.returncode, 0)
+        self.assertIn("evidence_store", process.stderr)
+        marker = self.root / "evidence6.jsonl.complete"
+        self.assertFalse(marker.exists())
+        # A failed store keeps its prefix but must never be trusted as complete.
+        self.assertTrue((self.root / "evidence6.jsonl").exists())
+
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         raise SystemExit("Usage: test_replay.py /path/to/smoke_replay [unittest options]")

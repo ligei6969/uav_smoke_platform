@@ -67,6 +67,16 @@ task/build-host/smoke_replay.exe --detections <CSV路径> --output <新的JSONL�
 task/build-host/smoke_replay.exe --detections <CSV路径> --telemetry <遥测CSV路径> --output <新的JSONL路径> --lens wide --calibrated-hfov <实测水平角度> --max-time-delta 0.2
 ```
 
+### 稳定事件与证据(T19a,HOST 部分)
+
+可选启用稳定烟雾事件输出:连续 `--min-event-frames`(默认 3)个不低于置信度门限的阳性帧构成一个事件;阴性帧、弱置信帧、超过 1 秒的帧间隔或换源/换 epoch 都会结束当前事件段。事件写入 `--events-output` 指定的 JSONL(排他创建,`--max-event-bytes` 默认 1MiB),全部事件写入成功后生成 `<路径>.complete` 原子完成标记。
+
+```powershell
+task/build-host/smoke_replay.exe --detections <CSV路径> --telemetry <遥测CSV路径> --output <新的JSONL路径> --lens wide --calibrated-hfov <实测水平角度> --events-output <新的证据JSONL路径> --min-event-frames 3
+```
+
+约束:事件是**元数据稳定性判定**(`event_model=metadata_stability_decision`),不是火情结论,也不是多目标跟踪;证据行 `hardware_commands` 恒为 0。配额耗尽或写失败后证据存储永久失败,不打完成标记;不完整前缀不能当完整结果使用,重试用新的输出路径。零事件运行不在磁盘留下证据文件。
+
 ## CSV 契约
 
 UTF-8 / ASCII，无表头、无引号；空行和 `#` 开头的注释跳过。检测每行：

@@ -20,6 +20,8 @@ add_library(smoke_core
     src/telemetry/telemetry.cpp
     src/localization/localization.cpp
     src/gimbal/gimbal.cpp
+    src/events/stable_event.cpp
+    src/events/evidence_store.cpp
 )
 target_include_directories(smoke_core PUBLIC include)
 target_link_libraries(smoke_core PUBLIC Threads::Threads)
@@ -78,7 +80,7 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
-    foreach(name queue localization gimbal io)
+    foreach(name queue localization gimbal io events)
         add_executable(test_${name} tests/test_${name}.cpp)
         target_link_libraries(test_${name} PRIVATE smoke_core)
         add_test(NAME ${name} COMMAND test_${name})

@@ -30,6 +30,7 @@ G1 仅覆盖检测记录之后的 HOST 元数据闭环；视频、模型、稳�
 - [ ] T17 真实视频端到端回放，检测 JSON / 摘要 / 标注视频 / 关键帧；不得拿 synthetic metadata 结果替代。
 - [ ] T18 帧时间与遥测时钟映射；有效 AGL 和全局相机姿态；重连 epoch 失效保护。
 - [ ] T19 稳定烟雾事件、证据存储配额、原子完成标记、错误恢复与审计字段。
+  - [x] T19a（2026-11-25）HOST 元数据部分：`StableEventTracker`（连续帧去抖、阴性/弱置信/时间间隔断流、换源关合、有界事件存储）与 `EvidenceStore`（排他创建、字节配额、失败永不打完成标记、`.complete` 原子侧车标记）；`smoke_replay` 新增 `--events-output` / `--min-event-frames` / `--max-event-bytes`，证据行含审计字段（`event_model=metadata_stability_decision`、`hardware_commands=0`）。事件仍是元数据稳定性判定，不是火情结论。剩余：机载侧错误恢复与断流降级（依赖 T14/T18 的运行时）。
 
 2GB 策略：初始只支持一个主业务流、一个模型实例/推理执行器；固定线程预算、预分配/复用缓冲；每级有界、过载丢旧而非堆积。此为待机载验证的设计约束，不是已有性能承诺。
 

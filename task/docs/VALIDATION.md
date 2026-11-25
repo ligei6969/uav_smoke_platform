@@ -73,3 +73,15 @@ ctest --test-dir task/build-linux-asan --output-on-failure
 - 云台真实执行、目标地理精度和飞行安全。
 
 所有集成 fixtures 明确为 synthetic metadata；没有伪造真实模型/视频运行结果。运行时程序始终 `hardware_commands=0` / `control_mode=dry_run`。
+
+## T19a 追加验证(2026-11-25,无硬件)
+
+新增 `src/events/stable_event.cpp`、`src/events/evidence_store.cpp`、`include/smoke/stable_event.hpp`、`include/smoke/evidence_store.hpp`、`tests/test_events.cpp`(12 组检查:阈值以下不成事件、连续帧成事件、阴性帧/弱置信/时间间隔断流、换 epoch 关合、乱序拒绝、事件存储有界、配额精确到字节、失败存储拒绝完成、排他创建、完成标记)。`smoke_replay` 新增三个选项,`test_replay.py` 由 10 例扩至 16 例(事件成证、阈值下零事件且零残留、阴性拆分、输出路径冲突、排他重建、配额失败无完成标记)。
+
+| 平台与配置 | 结果 |
+|---|---|
+| Windows Debug(MinGW GCC 15.2 / Python 3.14,mapping ON) | CTest 8/8,10 次重复全过 |
+| WSL2 Ubuntu 24.04 Release(GCC 13.3,mapping ON) | CTest 8/8 |
+| WSL2 Debug + ASan/UBSan | CTest 8/8,无 sanitizer 诊断 |
+
+注意:test_events.cpp 的 C++14 核心无 std::filesystem,文件用例用 `std::remove` 预清理唯一路径。证据存储为惰性创建:零事件运行不在磁盘留下未完成文件。配额耗尽后存储永久失败,`.complete` 标记只在最终 flush 成功后写出;不完整证据前缀不能当完整结果使用。

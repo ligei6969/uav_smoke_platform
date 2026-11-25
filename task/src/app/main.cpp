@@ -1,7 +1,9 @@
 #include "smoke/bounded_queue.hpp"
+#include "smoke/evidence_store.hpp"
 #include "smoke/gimbal.hpp"
 #include "smoke/localization.hpp"
 #include "smoke/replay_io.hpp"
+#include "smoke/stable_event.hpp"
 #include "smoke/telemetry.hpp"
 
 #include <chrono>
@@ -13,6 +15,7 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
+#include <memory>
 #include <stdexcept>
 #include <sstream>
 #include <thread>
@@ -94,8 +97,11 @@ void Help()
                  "  [--telemetry telemetry.csv] [--lens wide|zoom|ir]\n"
                  "  [--calibrated-hfov degrees] [--max-time-delta seconds]\n"
                  "  [--queue-capacity 8] [--max-output-bytes 16777216]\n"
+                 "  [--events-output events.jsonl] [--min-event-frames 3]\n"
+                 "                 [--max-event-bytes 1048576]\n"
                  "Consumes recorded detection METADATA; does not run inference or actuate hardware.\n"
-                 "No calibration or telemetry => localization explicitly invalid. All control is dry-run.\n";
+                 "No calibration or telemetry => localization explicitly invalid. All control is dry-run.\n"
+                 "Events are stability decisions over metadata; evidence is not a fire report.\n";
 }
 
 std::map<std::string, std::string> Options(int argc, char **argv)
@@ -103,7 +109,9 @@ std::map<std::string, std::string> Options(int argc, char **argv)
     const std::map<std::string, std::string> allowed = {
         {"--detections", ""}, {"--output", ""}, {"--telemetry", ""},
         {"--lens", ""}, {"--calibrated-hfov", ""}, {"--max-time-delta", ""},
-        {"--queue-capacity", ""}, {"--max-output-bytes", ""}
+        {"--queue-capacity", ""}, {"--max-output-bytes", ""},
+        {"--events-output", ""}, {"--min-event-frames", ""},
+        {"--max-event-bytes", ""}
     };
     std::map<std::string, std::string> options;
     for (int i = 1; i < argc; i += 2) {
@@ -130,6 +138,34 @@ double NumericOption(const std::map<std::string, std::string> &options, const ch
     }
     return value;
 }
+
+// One evidence record: the stability decision plus audit fields. Hardware
+// commands remain zero; models are named so consumers cannot mistake this
+// for a fire report or a tracked real-world object.
+std::string EvidenceLine(const smoke::StableEvent &event, std::uint64_t min_frames)
+{
+    std::ostringstream row;
+    row << std::setprecision(15)
+        << "{\"event_id\":" << event.event_id
+        << ",\"source\":" << smoke::JsonString(event.source)
+        << ",\"stream_epoch\":" << event.stream_epoch
+        << ",\"lens\":" << smoke::JsonString(smoke::LensName(event.lens))
+        << ",\"first_frame\":" << event.first_frame
+        << ",\"last_frame\":" << event.last_frame
+        << ",\"first_time_sec\":" << event.first_time_sec
+        << ",\"last_time_sec\":" << event.last_time_sec
+        << ",\"frame_count\":" << event.frame_count
+        << ",\"max_confidence\":" << event.max_confidence
+        << ",\"mean_confidence\":" << event.mean_confidence
+        << ",\"center_x_px\":" << event.center_x_px
+        << ",\"center_y_px\":" << event.center_y_px
+        << ",\"bottom_center_y_px\":" << event.bottom_center_y_px
+        << ",\"min_frames\":" << min_frames
+        << ",\"event_model\":\"metadata_stability_decision\""
+        << ",\"ground_projection\":\"flat_ground_hypothesis\""
+        << ",\"hardware_commands\":0}";
+    return row.str();
+}
 }
 
 int main(int argc, char **argv)
@@ -140,9 +176,15 @@ int main(int argc, char **argv)
         const double capacity = NumericOption(options, "--queue-capacity", 8);
         const double max_delta = NumericOption(options, "--max-time-delta", 0.2);
         const double byte_limit = NumericOption(options, "--max-output-bytes", 16 * 1024 * 1024);
+        const double min_event_frames = NumericOption(options, "--min-event-frames", 3);
+        const double max_event_bytes = NumericOption(options, "--max-event-bytes", 1024 * 1024);
         if (capacity < 1 || capacity > 4096 || capacity != std::floor(capacity) ||
             max_delta < 0 || max_delta > 10 || byte_limit < 1024 || byte_limit > 1073741824 ||
-            byte_limit != std::floor(byte_limit)) {
+            byte_limit != std::floor(byte_limit) ||
+            min_event_frames < 1 || min_event_frames > 4096 ||
+            min_event_frames != std::floor(min_event_frames) ||
+            max_event_bytes < 1024 || max_event_bytes > 1073741824 ||
+            max_event_bytes != std::floor(max_event_bytes)) {
             throw std::invalid_argument("option outside resource limits");
         }
         smoke::CameraCalibration calibration;
@@ -163,6 +205,12 @@ int main(int argc, char **argv)
         if (input_name == output_name || (options.count("--telemetry") && options.at("--telemetry") == output_name)) {
             throw std::invalid_argument("output_must_not_replace_input");
         }
+        const bool emit_events = options.count("--events-output") > 0;
+        const std::string events_name = emit_events ? options.at("--events-output") : std::string();
+        if (emit_events && (events_name == output_name || events_name == input_name ||
+                            (options.count("--telemetry") && events_name == options.at("--telemetry")))) {
+            throw std::invalid_argument("events_output_must_differ_from_other_files");
+        }
         CheckInputFile(input_name);
         std::ifstream input(input_name);
         if (!input) { throw std::runtime_error("cannot_open_detections"); }
@@ -173,6 +221,21 @@ int main(int argc, char **argv)
             if (!telemetry_input) { throw std::runtime_error("cannot_open_telemetry"); }
         }
         ExclusiveOutput output(output_name);
+        // The evidence store is created lazily at the first event record so a
+        // run with zero events leaves no incomplete artifact on disk.
+        std::unique_ptr<smoke::EvidenceStore> evidence;
+        auto ensure_evidence = [&]() {
+            if (!evidence) {
+                evidence.reset(new smoke::EvidenceStore(
+                    events_name, static_cast<std::uint64_t>(max_event_bytes)));
+                if (evidence->Failed()) {
+                    throw std::runtime_error("cannot_create_events_output_exclusively");
+                }
+            }
+        };
+        smoke::StableEventConfig event_config;
+        event_config.min_frames = static_cast<std::uint64_t>(min_event_frames);
+        smoke::StableEventTracker tracker(event_config);
 
         smoke::BoundedQueue<smoke::Detection> queue(static_cast<std::size_t>(capacity));
         std::exception_ptr producer_error;
@@ -211,6 +274,8 @@ int main(int argc, char **argv)
         // Processing errors must cancel the producer before its join.
         auto finish = [&] { cancelled.store(true); queue.Close(); if (producer.joinable()) { producer.join(); } };
         std::size_t processed = 0, located = 0, proposed = 0, output_bytes = 0;
+        std::size_t events_emitted = 0;
+        std::size_t events_before = static_cast<std::size_t>(tracker.Events().size());
         // A sorted single-session replay only needs the nearest before/after candidates.
         smoke::TelemetryBuffer telemetry(2);
         smoke::GimbalConfig gimbal_config;
@@ -256,6 +321,30 @@ int main(int argc, char **argv)
                 const auto match = telemetry.Match(detection.stamp, max_delta);
                 const auto location = smoke::Locate(detection, match, calibration);
                 const auto control = gimbal.Update(detection, detection.stamp.time_sec);
+                {
+                    std::string event_reason;
+                    // The tracker applies its own confidence gate; positive=true means
+                    // "this frame contains a smoke box", not "it is strong".
+                    // Box bottom-center is the point ground projection consumes.
+                    if (!tracker.Observe(detection.stamp, true, detection.box.confidence,
+                                         (detection.box.x1 + detection.box.x2) / 2.0,
+                                         (detection.box.y1 + detection.box.y2) / 2.0,
+                                         detection.box.y2, &event_reason)) {
+                        throw std::invalid_argument("events: " + event_reason);
+                    }
+                    const std::size_t events_now = tracker.Events().size();
+                    for (std::size_t index = events_before; index < events_now; ++index) {
+                        if (emit_events) {
+                            ensure_evidence();
+                            if (!evidence->Append(EvidenceLine(tracker.Events().at(index),
+                                                               static_cast<std::uint64_t>(min_event_frames)))) {
+                                throw std::runtime_error("evidence_store_quota_or_write_failed");
+                            }
+                        }
+                        ++events_emitted;
+                    }
+                    events_before = events_now;
+                }
                 std::ostringstream row;
                 row << std::setprecision(15)
                     << "{\"source\":" << smoke::JsonString(detection.stamp.source)
@@ -282,11 +371,28 @@ int main(int argc, char **argv)
             }
             finish();
             if (producer_error) { std::rethrow_exception(producer_error); }
+            // Session end closes any open run; a run with enough frames emits one event.
+            tracker.Flush();
+            if (emit_events && tracker.Events().size() > events_before) {
+                for (std::size_t index = events_before; index < tracker.Events().size(); ++index) {
+                    ensure_evidence();
+                    if (!evidence->Append(EvidenceLine(tracker.Events().at(index),
+                                                       static_cast<std::uint64_t>(min_event_frames)))) {
+                        throw std::runtime_error("evidence_store_quota_or_write_failed");
+                    }
+                    ++events_emitted;
+                }
+                events_before = tracker.Events().size();
+                if (!evidence->Complete()) {
+                    throw std::runtime_error("evidence_store_completion_failed");
+                }
+            }
             output.Flush();
         } catch (...) { finish(); throw; }
         const double seconds = std::chrono::duration<double>(Clock::now() - started).count();
         std::cout << "{\"mode\":\"metadata_replay\",\"hardware_commands\":0,\"processed\":" << processed
                   << ",\"located\":" << located << ",\"control_proposals\":" << proposed
+                  << ",\"events_emitted\":" << events_emitted
                   << ",\"queue_high_water\":" << queue.HighWaterMark()
                   << ",\"elapsed_sec\":" << seconds << "}\n";
         return 0;
