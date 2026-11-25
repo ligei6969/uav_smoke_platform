@@ -29,6 +29,7 @@ G1 仅覆盖检测记录之后的 HOST 元数据闭环；视频、模型、稳�
 - [ ] T16 原烟雾模型校验（哈希/输入/输出/类别）与一个推理执行器；不擅自换模型，按实际 Nano 软件栈选后端。
 - [ ] T17 真实视频端到端回放，检测 JSON / 摘要 / 标注视频 / 关键帧；不得拿 synthetic metadata 结果替代。
 - [ ] T18 帧时间与遥测时钟映射；有效 AGL 和全局相机姿态；重连 epoch 失效保护。
+  - [x] T18a（2026-11-25）HOST 元数据部分：遥测契约新增可选第 13 列 `stream_epoch`（12 列历史格式仍兼容,epoch 0,同一文件不得混用宽度）;`TelemetryBuffer::Match` 按同 source+同时基+同 epoch 过滤,epoch 不一致输出 `telemetry_epoch_mismatch`,重连后旧会话遥测不可用,不跨周期回退。剩余：真实设备/主机时钟映射、有效 AGL 与全局姿态的来源(依赖 T14 采集)。
 - [ ] T19 稳定烟雾事件、证据存储配额、原子完成标记、错误恢复与审计字段。
   - [x] T19a（2026-11-25）HOST 元数据部分：`StableEventTracker`（连续帧去抖、阴性/弱置信/时间间隔断流、换源关合、有界事件存储）与 `EvidenceStore`（排他创建、字节配额、失败永不打完成标记、`.complete` 原子侧车标记）；`smoke_replay` 新增 `--events-output` / `--min-event-frames` / `--max-event-bytes`，证据行含审计字段（`event_model=metadata_stability_decision`、`hardware_commands=0`）。事件仍是元数据稳定性判定，不是火情结论。剩余：机载侧错误恢复与断流降级（依赖 T14/T18 的运行时）。
 

@@ -85,3 +85,15 @@ ctest --test-dir task/build-linux-asan --output-on-failure
 | WSL2 Debug + ASan/UBSan | CTest 8/8,无 sanitizer 诊断 |
 
 注意:test_events.cpp 的 C++14 核心无 std::filesystem,文件用例用 `std::remove` 预清理唯一路径。证据存储为惰性创建:零事件运行不在磁盘留下未完成文件。配额耗尽后存储永久失败,`.complete` 标记只在最终 flush 成功后写出;不完整证据前缀不能当完整结果使用。
+
+## T18a 追加验证(2026-11-25,无硬件)
+
+遥测样本与 CSV 契约新增可选 `stream_epoch`(第 13 列;12 列历史格式兼容为 epoch 0);`TelemetryBuffer::Match` 增加 epoch 隔离,失败原因按契约顺序诊断(`no_telemetry_for_source` → `time_base_mismatch` → `telemetry_epoch_mismatch`)。新回归:io 3 项(13 列解析、非法 epoch、14 列拒绝),localization epoch 隔离组(旧 epoch 不可匹配、新 epoch 正常、无样本 epoch 报因),replay 集成 2 例(epoch 错位全部 `telemetry_epoch_mismatch` 且不定位、同 epoch 显式 13 列正常定位)。
+
+| 平台与配置 | 结果 |
+|---|---|
+| Windows Debug(MinGW GCC 15.2 / Python 3.14,mapping ON) | CTest 8/8,10 次重复全过;Python 18 例 OK |
+| WSL2 Ubuntu 24.04 Release(mapping ON) | CTest 8/8 |
+| WSL2 Debug + ASan/UBSan | CTest 8/8,无 sanitizer 诊断 |
+
+遗留:检测帧时间戳到主机单调时钟的映射、有效 AGL/全局姿态来源仍依赖 T14;本项只覆盖重连 epoch 失效保护的元数据部分。

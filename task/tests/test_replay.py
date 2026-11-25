@@ -326,6 +326,32 @@ class ReplayIntegrationTests(unittest.TestCase):
         self.assertTrue((self.root / "evidence6.jsonl").exists())
 
 
+    def test_telemetry_epoch_mismatch_blocks_matching(self):
+        # Detection from epoch 1 (after a reconnect); telemetry from epoch 0.
+        rows = [detection(frame_id=i, timestamp=i / 30.0).replace(
+                    SOURCE + ",0,", SOURCE + ",1,", 1)
+                for i in range(1, 8)]
+        telemetry_epoch0 = telemetry(timestamp=1.0)
+        # 12-column telemetry is epoch 0; the frames are epoch 1.
+        process, output = self.invoke(rows, [telemetry_epoch0], name="epoch-mixed")
+        _, out_rows = self.success(process, output)
+        self.assertFalse(any(r["location_valid"] for r in out_rows))
+        self.assertTrue(all(r["location_reason"] == "telemetry_epoch_mismatch"
+                            for r in out_rows))
+
+    def test_matching_telemetry_epoch_enables_location(self):
+        # Same epoch on both sides: location works as usual. 13-column
+        # telemetry carries the epoch explicitly.
+        detections = [detection(frame_id=i, timestamp=i / 30.0)
+                      for i in (1, 2, 3, 4)]
+        rows = [row.replace(SOURCE + ",0,", SOURCE + ",2,", 1) for row in detections]
+        telemetry_13 = telemetry(timestamp=0.1).rstrip("\n") + ",2\n"
+        process, output = self.invoke(rows, [telemetry_13], name="epoch-match")
+        _, out_rows = self.success(process, output)
+        self.assertTrue(all(r["location_valid"] for r in out_rows))
+        self.assertAlmostEqual(out_rows[0]["latitude_deg"], 30.0, places=8)
+
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         raise SystemExit("Usage: test_replay.py /path/to/smoke_replay [unittest options]")

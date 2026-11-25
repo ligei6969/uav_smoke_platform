@@ -111,6 +111,7 @@ TelemetryMatch TelemetryBuffer::Match(const FrameStamp &frame, double max_delta_
     }
 
     bool saw_source = false;
+    bool saw_time_base = false;
     bool found = false;
     double best_delta = std::numeric_limits<double>::infinity();
     {
@@ -119,6 +120,8 @@ TelemetryMatch TelemetryBuffer::Match(const FrameStamp &frame, double max_delta_
             if (sample.source != frame.source) { continue; }
             saw_source = true;
             if (sample.time_base != frame.time_base) { continue; }
+            saw_time_base = true;
+            if (sample.stream_epoch != frame.stream_epoch) { continue; }
             const double delta = std::fabs(sample.time_sec - frame.time_sec);
             // Samples are time ordered: equal-distance ties retain the earlier one.
             if (!found || delta < best_delta) {
@@ -129,7 +132,11 @@ TelemetryMatch TelemetryBuffer::Match(const FrameStamp &frame, double max_delta_
         }
     }
     if (!found) {
-        result.reason = saw_source ? "time_base_mismatch" : "no_telemetry_for_source";
+        // Diagnose in contract order: no source, wrong time base, then the
+        // reconnect case — same source and time base but another session epoch.
+        result.reason = !saw_source ? "no_telemetry_for_source"
+                                    : (!saw_time_base ? "time_base_mismatch"
+                                                      : "telemetry_epoch_mismatch");
         return result;
     }
     result.delta_sec = best_delta;

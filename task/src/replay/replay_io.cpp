@@ -103,14 +103,33 @@ Detection ParseDetectionRow(const std::string &row)
 
 TelemetrySample ParseTelemetryRow(const std::string &row)
 {
-    const auto f = Fields(row, 12);
+    // 12 columns are the historical contract (epoch 0); 13 columns carry an
+    // explicit session epoch. Other widths are rejected: one recording has
+    // one contract, and no per-row mixing.
+    std::vector<std::string> fields;
+    std::size_t begin = 0;
+    for (std::size_t i = 0; i <= row.size(); ++i) {
+        if (i == row.size() || row[i] == ',') {
+            fields.push_back(row.substr(begin, i - begin));
+            begin = i + 1;
+        }
+    }
+    if (fields.size() != 12 && fields.size() != 13) {
+        throw std::invalid_argument("wrong_csv_field_count");
+    }
+    for (const auto &field : fields) {
+        if (field.empty()) { throw std::invalid_argument("empty_csv_field"); }
+    }
     TelemetrySample s;
-    s.source = f[0];
-    s.time_sec = Number(f[1]);
-    s.latitude_deg = Number(f[2]); s.longitude_deg = Number(f[3]);
-    s.altitude_m = Number(f[4]); s.height_agl_m = Number(f[5]);
-    s.pitch_deg = Number(f[6]); s.roll_deg = Number(f[7]); s.yaw_deg = Number(f[8]);
-    s.gps_valid = Boolean(f[9]); s.height_valid = Boolean(f[10]); s.attitude_valid = Boolean(f[11]);
+    s.source = fields[0];
+    s.time_sec = Number(fields[1]);
+    if (fields.size() == 13) {
+        s.stream_epoch = Unsigned(fields[12]);
+    }
+    s.latitude_deg = Number(fields[2]); s.longitude_deg = Number(fields[3]);
+    s.altitude_m = Number(fields[4]); s.height_agl_m = Number(fields[5]);
+    s.pitch_deg = Number(fields[6]); s.roll_deg = Number(fields[7]); s.yaw_deg = Number(fields[8]);
+    s.gps_valid = Boolean(fields[9]); s.height_valid = Boolean(fields[10]); s.attitude_valid = Boolean(fields[11]);
     if (s.time_sec < 0.0 || s.source.empty() || s.source.size() > 64) {
         throw std::invalid_argument("invalid_telemetry_identity");
     }

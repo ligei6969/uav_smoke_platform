@@ -24,6 +24,17 @@ int main()
         }
         auto s = smoke::ParseTelemetryRow("h30t-1,1,30,120,120,100,-45,0,90,1,0,1");
         CHECK(!s.height_valid && s.gps_valid);
+        CHECK(s.stream_epoch == 0);
+        auto wide = smoke::ParseTelemetryRow("h30t-1,1,30,120,120,100,-45,0,90,1,0,1,7");
+        CHECK(wide.stream_epoch == 7);
+        bool epoch_rejected = false;
+        try { smoke::ParseTelemetryRow("h30t-1,1,30,120,120,100,-45,0,90,1,0,1,x"); }
+        catch (const std::exception &) { epoch_rejected = true; }
+        CHECK(epoch_rejected);
+        epoch_rejected = false;
+        try { smoke::ParseTelemetryRow("h30t-1,1,30,120,120,100,-45,0,90,1,0,1,2,3"); }
+        catch (const std::exception &) { epoch_rejected = true; }
+        CHECK(epoch_rejected);
         std::stringstream lines("# example\r\n\nh30t-1\r\n");
         std::string row;
         CHECK(smoke::ReadRow(lines, row) && row == "h30t-1");

@@ -140,6 +140,32 @@ void TestMatching()
     CHECK(boundary.Match(Detection().stamp, 0.25).valid);
 }
 
+void TestEpochIsolation()
+{
+    // Reconnect protection: telemetry from a previous session epoch must
+    // never be matched against frames of the current epoch, even when the
+    // times overlap exactly.
+    smoke::TelemetryBuffer buffer;
+    auto old = Sample(10.0);
+    old.stream_epoch = 0;
+    CHECK(buffer.Push(old));
+    auto frame = Detection(10.0).stamp;
+    frame.stream_epoch = 1; // Frame arrives after a reconnect.
+    const auto mismatch = buffer.Match(frame, 0.2);
+    CHECK(!mismatch.valid);
+    CHECK(mismatch.reason == "telemetry_epoch_mismatch");
+    CHECK(smoke::Locate(Detection(), mismatch, Camera()).reason == "telemetry_epoch_mismatch");
+    // The new epoch's own samples match normally; the old ones stay excluded.
+    auto fresh = Sample(10.0);
+    fresh.stream_epoch = 1;
+    CHECK(buffer.Push(fresh));
+    const auto matched = buffer.Match(frame, 0.2);
+    CHECK(matched.valid && matched.sample.stream_epoch == 1);
+    // Frame from an epoch with no samples at all, source otherwise known.
+    frame.stream_epoch = 2;
+    CHECK(buffer.Match(frame, 0.2).reason == "telemetry_epoch_mismatch");
+}
+
 void TestCapacityAndQuality()
 {
     smoke::TelemetryBuffer buffer(2);
@@ -258,6 +284,7 @@ int main()
     try {
         TestGeometry();
         TestMatching();
+        TestEpochIsolation();
         TestCapacityAndQuality();
         TestNumericalRejection();
         TestConcurrentAccess();

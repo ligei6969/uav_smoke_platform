@@ -37,6 +37,9 @@ struct TelemetrySample {
     std::string source;
     double time_sec = 0.0;
     TimeBase time_base = TimeBase::Replay;
+    // Session epoch of the producing link. A reconnect starts a new epoch;
+    // samples from a previous epoch never match frames of the current one.
+    std::uint64_t stream_epoch = 0;
     double latitude_deg = 0.0;
     double longitude_deg = 0.0;
     double altitude_m = 0.0;

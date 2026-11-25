@@ -85,15 +85,16 @@ UTF-8 / ASCII，无表头、无引号；空行和 `#` 开头的注释跳过。�
 source,epoch,frame_id,time_sec,lens,width,height,x1,y1,x2,y2,confidence
 ```
 
-遥测每行：
+遥测每行(12 列为历史契约,epoch 固定 0;13 列带显式会话 epoch;同一文件不得混用两种宽度):
 
 ```text
 source,time_sec,latitude_deg,longitude_deg,altitude_m,height_agl_m,pitch_deg,roll_deg,yaw_deg,gps_valid,height_valid,attitude_valid
+source,time_sec,latitude_deg,longitude_deg,altitude_m,height_agl_m,pitch_deg,roll_deg,yaw_deg,gps_valid,height_valid,attitude_valid,stream_epoch
 ```
 
 质量标志为 0/1。遥测姿态必须是 **相机全局 NED 姿态（度）**，不是未经转换的机体姿态或云台相对角。GPS 海拔和相对地面高度不能互换。图像与遥测必须先映射到相同时间轴，当前回放统一为 Replay；飞行器时间戳到主机单调时钟的映射尚未实现。
 
-一个检测输入只允许同一个 source / epoch / lens；遥测可以多源交错，但文件时间全局非递减。匹配同源最近的前/后样本，等距选较早者，质量无效不回退旧的有效记录。遥测契约暂不含 epoch，不能声称覆盖跨重连周期匹配。
+一个检测输入只允许同一个 source / epoch / lens；遥测可以多源交错，但文件时间全局非递减。匹配同源最近的前/后样本，等距选较早者，质量无效不回退旧的有效记录。**epoch 隔离**:检测帧只匹配同 source、同时基、同 stream_epoch 的遥测样本;重连(检测帧 epoch 变化)后旧 epoch 遥测不可用,输出 `telemetry_epoch_mismatch`,不跨重连周期回退旧遥测。
 
 ## 资源和失败行为
 
