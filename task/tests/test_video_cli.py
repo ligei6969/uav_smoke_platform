@@ -214,6 +214,17 @@ class VideoCliTests(unittest.TestCase):
                 self.assertFalse(record["gimbal_suggestion_permitted"])
                 self.assertEqual(record["yaw_step_deg"], 0)
                 self.assertEqual(record["pitch_step_deg"], 0)
+        # Gimbal state must only reset when the selector releases the lock
+        # (target_changed with no selection), not on a one-frame miss: after a
+        # loss frame, the next accepted target must not be rejected for
+        # "source_changed" unless the lock was actually released before it.
+        loss_frames = [record for record in records if record["selected_index"] < 0]
+        if loss_frames:
+            for record in loss_frames:
+                self.assertIn(record["reason"],
+                              ("no_candidate", "target_missing", "target_expired",
+                               "target_released", "acquiring", "future_frame",
+                               "stale_frame", "out_of_order_time"))
         # Verify the real pipeline's bounded buffering and resource telemetry.
         # Recorded video applies backpressure: it must not drop decoded frames.
         self.assertEqual(summary["queue_capacity"], 2)

@@ -326,7 +326,10 @@ std::string AnalyzeVideo(const VideoOptions &o)
                 steering = gimbal.Update(chosen, frame.stamp.time_sec);
                 ++selected_count;
                 if (selection.target_changed) { ++target_changes; }
-            } else {
+            } else if (selection.target_changed) {
+                // The selector released the lock after its own loss tolerance
+                // ran out; only then does the gimbal state reset. A one-frame
+                // occlusion keeps the gimbal armed for the target's return.
                 gimbal.Reset();
             }
             target_records << std::setprecision(15) << "{\"frame_id\":" << frame.stamp.frame_id
