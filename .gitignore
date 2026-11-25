@@ -20,3 +20,7 @@ uav_smoke_platform/data/videos/
 /smoke_gateway/results/
 /smoke_gateway/*.journal
 /smoke_gateway/**/__pycache__/
+
+# Modular M350/H30T/Nano mainline. task/.gitignore excludes local assets/builds.
+!/task/
+!/task/**

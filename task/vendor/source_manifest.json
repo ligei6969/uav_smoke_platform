@@ -1,0 +1,147 @@
+{
+  "note": "Curated reference snapshot, not a complete transitive link dependency set; no app credentials copied.",
+  "sources": [
+    {
+      "sha256": "E6D549191DA746EEFAAD3E98F73D22F1FB5E6DD323F732202F4096D28B86356F",
+      "role": "reference_only_not_compiled",
+      "bytes": 40390,
+      "path": "samples/sample_c++/module_sample/liveview/test_liveview_entry.cpp"
+    },
+    {
+      "sha256": "337D776F020395DBA10CB38C3246C68043641AF81A0BDCF0C27FA98FAA1292EF",
+      "role": "reference_only_not_compiled",
+      "bytes": 1908,
+      "path": "samples/sample_c++/module_sample/liveview/test_liveview_entry.hpp"
+    },
+    {
+      "sha256": "3AE9B3993DF1D87D23669AD893C8954EE4D9443EAF835D39D8B31637A3B80762",
+      "role": "reference_only_not_compiled",
+      "bytes": 9910,
+      "path": "samples/sample_c++/module_sample/liveview/test_liveview.cpp"
+    },
+    {
+      "sha256": "8AEB4AF854A586FEBC376CE124FD1681F660302FCBF02B8F6F76A73493F77C58",
+      "role": "reference_only_not_compiled",
+      "bytes": 2552,
+      "path": "samples/sample_c++/module_sample/liveview/test_liveview.hpp"
+    },
+    {
+      "sha256": "936C61E5C9EC621AD6C915B735F8612C182D41625FD65EACD8D5D1454B4C13D7",
+      "role": "reference_only_not_compiled",
+      "bytes": 8425,
+      "path": "samples/sample_c++/module_sample/liveview/dji_camera_stream_decoder.cpp"
+    },
+    {
+      "sha256": "C33333DF547F27B681079D2C4F8355E6C28C0165ADB3FD4CD488BF79FD12E328",
+      "role": "reference_only_not_compiled",
+      "bytes": 2937,
+      "path": "samples/sample_c++/module_sample/liveview/dji_camera_stream_decoder.hpp"
+    },
+    {
+      "sha256": "48819455BD6F7A88643E970561E0BB0DBB5A335FDE68F7008DE31CE43A63EE8E",
+      "role": "reference_only_not_compiled",
+      "bytes": 3350,
+      "path": "samples/sample_c++/module_sample/liveview/dji_camera_image_handler.cpp"
+    },
+    {
+      "sha256": "A8C4A185AB83C8D049C70657D200A5BCF8CACC844DFDC9B3E570C22ABA7ABFBC",
+      "role": "reference_only_not_compiled",
+      "bytes": 2577,
+      "path": "samples/sample_c++/module_sample/liveview/dji_camera_image_handler.hpp"
+    },
+    {
+      "sha256": "53130271F4464DC76BEFBE1EA485D6933FE0253FBB00CB1EAB636A5CC32AD8A6",
+      "role": "reference_only_not_compiled",
+      "bytes": 16913,
+      "path": "samples/sample_c/module_sample/fc_subscription/test_fc_subscription.c"
+    },
+    {
+      "sha256": "7B705144904F41CFC8F92C744B42C2263E2149A6D6CC7AAC2D4A1DB17AA71F18",
+      "role": "reference_only_not_compiled",
+      "bytes": 2181,
+      "path": "samples/sample_c/module_sample/fc_subscription/test_fc_subscription.h"
+    },
+    {
+      "sha256": "42D1FA13985F1445D286CAA7187A36FB059C6C9C2362E87DF7B9CB6214DAF34D",
+      "role": "reference_only_not_compiled",
+      "bytes": 21132,
+      "path": "samples/sample_c/module_sample/gimbal_manager/test_gimbal_manager.c"
+    },
+    {
+      "sha256": "C2BFA3A08DD70ED0BBBEB6183F6867173F68A8061176F2A94CABFD8DA7CF4763",
+      "role": "reference_only_not_compiled",
+      "bytes": 2952,
+      "path": "samples/sample_c/module_sample/gimbal_manager/test_gimbal_manager.h"
+    },
+    {
+      "sha256": "A8BCB2CFE5F1A09BE39880D3DB022E8549AA3F838F4ED921156CF53B6DC16373",
+      "role": "reference_only_not_compiled",
+      "bytes": 9334,
+      "path": "samples/sample_c++/platform/linux/nvidia_jetson/hal/hal_usb_bulk.c"
+    },
+    {
+      "sha256": "DDBBE2CEE58B3BD69DB3429E8B120D1AC4A71E44E566F9546E64C31265E4F7F0",
+      "role": "reference_only_not_compiled",
+      "bytes": 3535,
+      "path": "samples/sample_c++/platform/linux/nvidia_jetson/hal/hal_usb_bulk.h"
+    },
+    {
+      "sha256": "82DB742B3E801E66C96F01C2BEB0D42DF83A9880A3309A7CE0323B39316B8CC3",
+      "role": "reference_only_not_compiled",
+      "bytes": 8224,
+      "path": "samples/sample_c++/platform/linux/nvidia_jetson/hal/hal_uart.c"
+    },
+    {
+      "sha256": "BCB3B3B9D95A9CE872B0BC6D5F6F77110295A4B90AEB941EF28F40940C904A09",
+      "role": "reference_only_not_compiled",
+      "bytes": 2612,
+      "path": "samples/sample_c++/platform/linux/nvidia_jetson/hal/hal_uart.h"
+    },
+    {
+      "sha256": "BE63D33833D9C29C801AE0B1ADD12DD300235F97C33B3BE2A5E61521AE6AE1A7",
+      "role": "reference_only_not_compiled",
+      "bytes": 6759,
+      "path": "samples/sample_c++/platform/linux/nvidia_jetson/CMakeLists.txt"
+    },
+    {
+      "sha256": "0CA7303EFC8A52654089F2C245D8A54F44B6CB370D4F57E48B3583DBB77E3DC4",
+      "role": "reference_only_not_compiled",
+      "bytes": 5280,
+      "path": "psdk_lib/include/dji_liveview.h"
+    },
+    {
+      "sha256": "0C56562F902769EE88EC9C15A9CCFF7FAE8D748592D3D9C968740D128AD6FEF7",
+      "role": "reference_only_not_compiled",
+      "bytes": 75243,
+      "path": "psdk_lib/include/dji_fc_subscription.h"
+    },
+    {
+      "sha256": "C2E8BC7A4A71D755D17041EEA062DA5DD35AFA73A911DF6B5A85E4B577D42615",
+      "role": "reference_only_not_compiled",
+      "bytes": 75570,
+      "path": "LICENSE.txt"
+    },
+    {
+      "sha256": "9549AB4E206F782EE04C40148FC0DD43686A3E4BB07E25ADECFC897CC5FF0298",
+      "role": "reference_only_not_compiled",
+      "bytes": 27855,
+      "path": "EULA.txt"
+    }
+  ],
+  "external_assets": [
+    {
+      "sha256": "7BFB2D6745640BD608FAAE589E5980DBD851B66CACADF356DF43FA71053FC077",
+      "role": "external_asset_not_copied",
+      "bytes": 7476567,
+      "path": "samples/sample_c++/module_sample/liveview/data/best.onnx"
+    },
+    {
+      "sha256": "DDE85C4E72821B3901479F1266B7C0DD052C4C6233A68987342D8F3E7E398FBE",
+      "role": "external_asset_not_copied",
+      "bytes": 3291100,
+      "path": "psdk_lib/lib/aarch64-linux-gnu-gcc/libpayloadsdk.a"
+    }
+  ],
+  "schema_version": 1,
+  "source_root": "J:\\Payload-SDK-3.10.0-task"
+}
