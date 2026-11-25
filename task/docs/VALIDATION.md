@@ -111,3 +111,16 @@ ctest --test-dir task/build-linux-asan --output-on-failure
 | WSL2 Debug + ASan/UBSan | CTest 8/8,无 sanitizer 诊断 |
 
 遗留:帧时间戳到主机单调时钟的映射、有效 AGL/全局姿态来源仍依赖 T14。
+
+## T15a 追加验证(2026-11-25,无硬件)
+
+新增 `src/video/h264_stream.cpp`、`include/smoke/h264_stream.hpp`、`tests/test_h264_stream.cpp`。`H264Packetizer` 把任意字节切块重组为完整 H.264 访问单元,显式帧所有权(每帧独立 payload),供未来 PSDK `DjiLiveview_H264Callback` 直连。关键实现点:增量扫描(每个字节只处理一次,跨块 3/4 字节起始码,无起始码时保留尾部 3 字节防止跨块码被误吞)、按切片头 `first_mb_in_slice` ue(v)(含去模拟字节,位级解析)区分首片/续片分帧、SPS/PPS/SEI 并入当前 AU、首个关键帧之前的数据按字节丢弃并计数、有界重组缓冲(2MiB 默认)与帧大小上限(512KiB 默认)、AUD 分帧、`Finish()` 结束流、`ResetStream()` 重连(序列号重置,失败状态粘滞)。测试 10 组 103 项检查:参数集+IDR+续片成一帧、VCL 首片分帧、逐字节切块透明、垃圾前缀丢弃、关键帧前数据丢弃、AUD 分帧、超帧失败粘滞、缓冲溢出失败、重连重置、空 Push 与非法配置。
+
+| 平台与配置 | 结果 |
+|---|---|
+| Windows Debug(MinGW GCC 15.2) | CTest 9/9,h264 单测 10 次重复全过 |
+| WSL2 Ubuntu 24.04 Release | CTest 9/9 |
+| WSL2 Debug + ASan/UBSan | CTest 9/9,无 sanitizer 诊断 |
+| WSL2 Release + OpenCV/FFmpeg 视频管线 | CTest 11/11(回归不受影响) |
+
+遗留:解码器本体接入(FFmpeg/OpenCV 接口适配)与真实 H264 流验证依赖 T14 采集;本模块不解析 SPS 参数内容,分辨率契约由调用方提供。

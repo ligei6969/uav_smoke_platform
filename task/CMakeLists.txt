@@ -22,6 +22,7 @@ add_library(smoke_core
     src/gimbal/gimbal.cpp
     src/events/stable_event.cpp
     src/events/evidence_store.cpp
+    src/video/h264_stream.cpp
 )
 target_include_directories(smoke_core PUBLIC include)
 target_link_libraries(smoke_core PUBLIC Threads::Threads)
@@ -80,7 +81,7 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
-    foreach(name queue localization gimbal io events)
+    foreach(name queue localization gimbal io events h264_stream)
         add_executable(test_${name} tests/test_${name}.cpp)
         target_link_libraries(test_${name} PRIVATE smoke_core)
         add_test(NAME ${name} COMMAND test_${name})
