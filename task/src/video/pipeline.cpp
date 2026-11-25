@@ -254,6 +254,7 @@ std::string AnalyzeVideo(const VideoOptions &o)
             << ",\"model\":" << JsonString(o.model) << ",\"model_sha256\":" << JsonString(model_hash)
             << ",\"model_labels\":{\"0\":\"yan\",\"1\":\"yun\"},\"smoke_class_id\":0"
             << ",\"source\":" << JsonString(o.source) << ",\"lens\":" << JsonString(LensName(o.lens))
+            << ",\"stream_epoch\":" << o.stream_epoch
             << ",\"frame_id_base\":0,\"timestamp_basis\":\"cfr_frame_index\",\"fps\":" << fps
             << ",\"frame_count\":" << expected << ",\"width\":" << width << ",\"height\":" << height << ",\"detections\":[";
         BoundedQueue<VideoFrame> queue(2);
@@ -366,6 +367,7 @@ std::string AnalyzeVideo(const VideoOptions &o)
             << ",\"model\":" << JsonString(o.model) << ",\"model_sha256\":" << JsonString(model_hash) << ",\"video_sha256\":" << JsonString(video_hash)
             << ",\"model_labels\":{\"0\":\"yan\",\"1\":\"yun\"},\"smoke_class_id\":0,\"frame_id_base\":0,\"timestamp_basis\":\"cfr_frame_index\""
             << ",\"source\":" << JsonString(o.source) << ",\"lens\":" << JsonString(LensName(o.lens))
+            << ",\"stream_epoch\":" << o.stream_epoch
             << ",\"cfr_pts_verified\":true,\"cfr_verification\":\"ffmpeg_packet_pts\",\"cfr_pts_tolerance_sec\":0.001,\"opencv_threads\":2"
             << ",\"max_output_bytes\":" << o.max_output_bytes << ",\"output_budget_mode\":\"post_write_soft_limit\""
             << ",\"preprocessing\":{\"color\":\"RGB\",\"width\":640,\"height\":640,\"padding\":114,\"scale\":0.00392156862745098,\"layout\":\"NCHW\",\"training_contract_verified\":false}"

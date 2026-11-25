@@ -20,6 +20,9 @@ struct VideoOptions {
     std::string output_dir;
     std::string source = "video-11";
     Lens lens = Lens::Unknown;
+    // Session epoch recorded into the summary so downstream replay metadata
+    // can carry reconnect boundaries end to end. Zero for single recordings.
+    std::uint64_t stream_epoch = 0;
     float confidence = .5f;
     float iou = .45f;
     std::uint64_t max_output_bytes = 1073741824;

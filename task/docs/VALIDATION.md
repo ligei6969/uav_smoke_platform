@@ -97,3 +97,17 @@ ctest --test-dir task/build-linux-asan --output-on-failure
 | WSL2 Debug + ASan/UBSan | CTest 8/8,无 sanitizer 诊断 |
 
 遗留:检测帧时间戳到主机单调时钟的映射、有效 AGL/全局姿态来源仍依赖 T14;本项只覆盖重连 epoch 失效保护的元数据部分。
+
+## T18b 追加验证(2026-11-25,无硬件)
+
+`smoke_analyze_video` 新增 `--stream-epoch`(写入 `video_summary.json` 与 `detection_results.json`);`export_detections.py` 新增 `--epoch`(默认 0,写进 CSV 第 2 列,与 T18a 遥测契约对齐;`rows()` 的 epoch 为默认参数,旧 3 参调用兼容)。导出测试由 14 例扩至 17 例(epoch 写入行、非法 epoch 拒绝、CLI 默认值与显式 epoch)。
+
+端到端贯通检查(WSL 真模型跑合成 30 帧 MP4):`--stream-epoch 9` 后 `video_summary.json` 与 `detection_results.json` 的 `stream_epoch` 均为 9;该 JSON 经导出器加 `--epoch` 可变成带 epoch 的回放 CSV,交由 T18a 的匹配隔离使用。
+
+| 平台与配置 | 结果 |
+|---|---|
+| Windows Debug(MinGW GCC 15.2 / Python 3.14) | CTest 8/8;Python 17+18 例 OK |
+| WSL2 Release + OpenCV/FFmpeg 视频管线(build-video) | CTest 11/11(含 video_cli 真模型) |
+| WSL2 Debug + ASan/UBSan | CTest 8/8,无 sanitizer 诊断 |
+
+遗留:帧时间戳到主机单调时钟的映射、有效 AGL/全局姿态来源仍依赖 T14。

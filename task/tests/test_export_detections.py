@@ -44,8 +44,8 @@ def recorded_payload():
 
 
 class ExportDetectionsTests(unittest.TestCase):
-    def export_rows(self, payload):
-        return list(BRIDGE.rows(payload, "drone-1", "wide"))
+    def export_rows(self, payload, epoch=0):
+        return list(BRIDGE.rows(payload, "drone-1", "wide", epoch))
 
     def run_cli(self, directory, payload, output=None):
         input_file = Path(directory) / "detection_results.json"
@@ -153,6 +153,37 @@ class ExportDetectionsTests(unittest.TestCase):
             payload["width"] = dimension
             with self.assertRaises(ValueError):
                 self.export_rows(payload)
+
+    def test_epoch_is_stamped_into_rows(self):
+        self.assertEqual(list(BRIDGE.rows(recorded_payload(), "drone-1", "wide", 0))[0].split(",")[1], "0")
+        rows = list(BRIDGE.rows(recorded_payload(), "drone-1", "wide", 5))
+        self.assertTrue(all(row.split(",")[1] == "5" for row in rows))
+
+    def test_invalid_epoch_is_rejected(self):
+        for bad in (-1, 2.5, True, "2", 2**64):
+            with self.assertRaises(ValueError):
+                list(BRIDGE.rows(recorded_payload(), "drone-1", "wide", bad))
+
+    def test_cli_defaults_and_accepts_epoch(self):
+        with tempfile.TemporaryDirectory(prefix="smoke-export-epoch-") as directory:
+            payload = recorded_payload()
+            payload["stream_epoch"] = 4
+            completed, output = self.run_cli(directory, payload)
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            # Without --epoch the CLI still stamps 0.
+            self.assertEqual(output.read_text(encoding="utf-8").splitlines()[1].split(",")[1], "0")
+            custom = Path(directory) / "detections-epoch.csv"
+            completed = subprocess.run(
+                [sys.executable, str(EXPORTER), "--detections",
+                 str(Path(directory) / "detection_results.json"),
+                 "--output", str(custom), "--source", "drone-1",
+                 "--lens", "wide", "--epoch", "4"],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                universal_newlines=True, timeout=10,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertEqual(custom.read_text(encoding="utf-8").splitlines()[1].split(",")[1], "4")
+            self.assertEqual(json.loads(completed.stdout)["epoch"], 4)
 
     def test_invalid_source_is_rejected(self):
         for source in ("", "with space", "contains,comma", "a" * 65):

@@ -10,7 +10,7 @@ namespace {
 void Help()
 {
     std::cout << "smoke_analyze_video --video input.mp4 --model best.onnx --output-dir new-directory\n"
-                 "  [--source video-11] [--lens unknown|wide|zoom|ir|fpv]\n"
+                 "  [--source video-11] [--lens unknown|wide|zoom|ir|fpv] [--stream-epoch 0]\n"
                  "  [--conf 0.5] [--iou 0.45] [--max-output-bytes 1073741824]\n"
                  "Recorded CFR MP4, original yan/yun ONNX, OpenCV CPU, all frames. No aircraft commands.\n"
                  "Output directory must not exist. The final complete summary is the success marker.\n";
@@ -33,8 +33,8 @@ int main(int argc, char **argv)
         if (argc == 2 && std::string(argv[1]) == "--help") { Help(); return 0; }
         const std::map<std::string, bool> allowed = {
             {"--video", true}, {"--model", true}, {"--output-dir", true},
-            {"--source", true}, {"--lens", true}, {"--conf", true},
-            {"--iou", true}, {"--max-output-bytes", true}};
+            {"--source", true}, {"--lens", true}, {"--stream-epoch", true},
+            {"--conf", true}, {"--iou", true}, {"--max-output-bytes", true}};
         std::map<std::string, std::string> args;
         for (int i = 1; i < argc; i += 2) {
             const std::string key = argv[i];
@@ -56,6 +56,13 @@ int main(int argc, char **argv)
             if (options.lens == smoke::Lens::Unknown && name != "unknown") {
                 throw std::invalid_argument("invalid_lens");
             }
+        }
+        if (args.count("--stream-epoch")) {
+            const auto &value = args.at("--stream-epoch");
+            if (value.empty() || value.find_first_not_of("0123456789") != std::string::npos) {
+                throw std::invalid_argument("invalid_stream_epoch");
+            }
+            options.stream_epoch = std::stoull(value);
         }
         if (args.count("--conf")) { options.confidence = Threshold(args.at("--conf")); }
         if (args.count("--iou")) { options.iou = Threshold(args.at("--iou")); }
